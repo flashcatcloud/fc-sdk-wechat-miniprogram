@@ -1,0 +1,17 @@
+{
+  "name": "@flashcatcloud/miniprogram-rum",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@flashcatcloud/miniprogram-core": "0.1.0",
+    "@flashcatcloud/miniprogram-platform": "0.1.0"
+  }
+}

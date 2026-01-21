@@ -1,0 +1,14 @@
+{
+  "name": "fc-sdk-wechat-miniprogram",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/*",
+    "clean": "rm -rf packages/*/dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
