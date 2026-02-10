@@ -15,7 +15,7 @@ export const enum LifeCycleEventType {
   RUM_EVENT_COLLECTED,
 }
 
-export interface LifeCycleEventMap {
+export type LifeCycleEventMap = {
   [LifeCycleEventType.PAGE_EVENT]: PageEvent
   [LifeCycleEventType.REQUEST_COMPLETED]: RequestCompleteEvent
   [LifeCycleEventType.ERROR_COLLECTED]: { message: string; stack?: string; source: 'app' | 'promise' | 'custom' }

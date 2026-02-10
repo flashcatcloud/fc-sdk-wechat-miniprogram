@@ -1,6 +1,6 @@
 import type { RawRumEvent } from './rawRumEvent.types'
 
-export interface RumEvent extends RawRumEvent {
+export type RumEvent = RawRumEvent & {
   application: {
     id: string
   }

@@ -1,21 +1,21 @@
-import type { Encoder } from '../tools/encoder'
-import { jsonStringify } from '../tools/serialisation/jsonStringify'
-import type { FlushController, FlushEvent } from './flushController'
+import type { Encoder } from "../tools/encoder";
+import { jsonStringify } from "../tools/serialisation/jsonStringify";
+import type { FlushController, FlushEvent } from "./flushController";
 
 export interface Payload {
-  data: string
-  bytesCount: number
-  encoding?: string
+  data: string;
+  bytesCount: number;
+  encoding?: string;
 }
 
 export interface HttpRequest {
-  send: (payload: Payload) => void
-  sendOnExit: (payload: Payload) => void
+  send: (payload: Payload) => void;
+  sendOnExit: (payload: Payload) => void;
 }
 
 export interface Batch {
-  add: (message: Record<string, unknown>) => void
-  stop: () => void
+  add: (message: Record<string, unknown>) => void;
+  stop: () => void;
 }
 
 export function createBatch({
@@ -24,24 +24,28 @@ export function createBatch({
   flushController,
   messageBytesLimit,
 }: {
-  encoder: Encoder
-  request: HttpRequest
-  flushController: FlushController
-  messageBytesLimit: number
+  encoder: Encoder;
+  request: HttpRequest;
+  flushController: FlushController;
+  messageBytesLimit: number;
 }): Batch {
-  const flushSubscription = flushController.flushObservable.subscribe((event) => flush(event))
+  const flushSubscription = flushController.flushObservable.subscribe((event) =>
+    flush(event)
+  );
 
   function add(message: Record<string, unknown>) {
-    const serializedMessage = jsonStringify(message)
+    const serializedMessage = jsonStringify(message);
     if (!serializedMessage) {
-      return
+      return;
     }
     if (serializedMessage.length >= messageBytesLimit) {
-      return
+      return;
     }
-    flushController.notifyBeforeAddMessage(serializedMessage.length)
-    encoder.write(encoder.isEmpty ? serializedMessage : `\n${serializedMessage}`)
-    flushController.notifyAfterAddMessage()
+    flushController.notifyBeforeAddMessage(serializedMessage.length);
+    encoder.write(
+      encoder.isEmpty ? serializedMessage : `\n${serializedMessage}`
+    );
+    flushController.notifyAfterAddMessage();
   }
 
   function flush(event: FlushEvent) {
@@ -49,20 +53,20 @@ export function createBatch({
       const payload: Payload = {
         data: encoderResult.output,
         bytesCount: encoderResult.outputBytesCount,
-      }
+      };
       if (!payload.data) {
-        return
+        return;
       }
-      if (event.reason === 'page_exit') {
-        request.sendOnExit(payload)
+      if (event.reason === "page_exit") {
+        request.sendOnExit(payload);
       } else {
-        request.send(payload)
+        request.send(payload);
       }
-    })
+    });
   }
 
   return {
     add,
     stop: flushSubscription.unsubscribe,
-  }
+  };
 }

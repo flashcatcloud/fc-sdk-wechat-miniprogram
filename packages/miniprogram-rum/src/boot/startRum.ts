@@ -22,6 +22,16 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     sessionManager.renew()
   }
 
+  if (configuration.debug) {
+    console.log('[FlashCat RUM] 🔧 启动监控功能', {
+      trackPages: configuration.trackPages,
+      trackActions: configuration.trackActions,
+      trackRequests: configuration.trackRequests,
+      trackErrors: configuration.trackErrors,
+      trackPerformance: configuration.trackPerformance,
+    })
+  }
+
   const { pageObservable, actionObservable } = initPageObservable()
   const { observable: requestObservable } = initRequestObservable(adapter)
   const { errorObservable, unhandledRejectionObservable } = initAppObservable(adapter)
@@ -35,8 +45,18 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
 
   const errorCollection = startErrorCollection(lifeCycle)
   if (configuration.trackErrors) {
-    errorObservable.subscribe((event) => errorCollection.addError(event.message, 'app'))
-    unhandledRejectionObservable.subscribe((event) => errorCollection.addError(event.reason, 'promise'))
+    errorObservable.subscribe((event) => {
+      if (configuration.debug) {
+        console.log('[FlashCat RUM] ⚠️ 捕获到 App 错误', event.message)
+      }
+      errorCollection.addError(event.message, 'app')
+    })
+    unhandledRejectionObservable.subscribe((event) => {
+      if (configuration.debug) {
+        console.log('[FlashCat RUM] ⚠️ 捕获到未处理的 Promise 拒绝', event.reason)
+      }
+      errorCollection.addError(event.reason, 'promise')
+    })
   }
 
   const globalContext = startGlobalContext()

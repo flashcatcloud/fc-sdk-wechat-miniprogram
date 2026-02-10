@@ -1,4 +1,4 @@
-export * from './platform'
+export * from './platform/index'
 export * from './browser/requestObservable'
 export * from './browser/pageObservable'
 export * from './browser/appObservable'

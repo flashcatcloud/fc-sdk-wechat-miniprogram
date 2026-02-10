@@ -1,5 +1,5 @@
 import type { PlatformAdapter } from './types'
-import { wechatAdapter } from './wechat'
+import { wechatAdapter } from './wechat/index'
 
 export function getDefaultAdapter(): PlatformAdapter {
   return wechatAdapter
