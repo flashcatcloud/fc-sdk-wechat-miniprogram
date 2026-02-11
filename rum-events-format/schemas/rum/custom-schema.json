@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "rum/custom-schema.json",
+  "title": "RumCustomEvent",
+  "type": "object",
+  "description": "Schema of all properties of a Custom event",
+  "allOf": [
+    {
+      "$ref": "_common-schema.json"
+    },
+    {
+      "required": ["type", "event"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "RUM event type",
+          "const": "custom",
+          "readOnly": true
+        },
+        "event": {
+          "type": "object",
+          "description": "Custom event properties",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the custom event",
+              "readOnly": false
+            },
+            "context": {
+              "type": "object",
+              "description": "Custom event context data",
+              "additionalProperties": true
+            }
+          },
+          "readOnly": true
+        }
+      }
+    }
+  ]
+}

@@ -1,20 +1,20 @@
-import type { RawRumEvent } from './rawRumEvent.types'
+import type { RawRumEvent } from "./rawRumEvent.types";
 
 export type RumEvent = RawRumEvent & {
   application: {
-    id: string
-  }
+    id: string;
+  };
   session: {
-    id: string
-  }
+    id: string;
+  };
   user?: {
-    id?: string
-    name?: string
-    email?: string
-  }
+    id?: string;
+    name?: string;
+    email?: string;
+  };
   view: {
-    id: string
-    name: string
-  }
-  context?: Record<string, unknown>
-}
+    id: string;
+    name: string;
+  };
+  context?: Record<string, unknown>;
+};

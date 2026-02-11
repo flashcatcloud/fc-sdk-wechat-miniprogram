@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "rum/_common-schema.json",
+  "title": "CommonProperties",
+  "type": "object",
+  "description": "Schema of common properties of miniprogram RUM events",
+  "required": ["date", "type", "application", "session", "view"],
+  "properties": {
+    "date": {
+      "type": "integer",
+      "description": "Start of the event in ms from epoch",
+      "minimum": 0,
+      "readOnly": true
+    },
+    "type": {
+      "type": "string",
+      "description": "RUM event type",
+      "enum": ["page", "request", "error", "action", "performance", "custom"],
+      "readOnly": true
+    },
+    "application": {
+      "type": "object",
+      "description": "Application properties",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID of the application",
+          "readOnly": true
+        }
+      },
+      "readOnly": true
+    },
+    "session": {
+      "type": "object",
+      "description": "Session properties",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID of the session",
+          "readOnly": true
+        }
+      },
+      "readOnly": true
+    },
+    "view": {
+      "type": "object",
+      "description": "View properties",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID of the view",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the view (page route)",
+          "readOnly": false
+        }
+      },
+      "readOnly": true
+    },
+    "user": {
+      "type": "object",
+      "description": "User properties",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier of the user",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the user",
+          "readOnly": true
+        },
+        "email": {
+          "type": "string",
+          "description": "Email of the user",
+          "readOnly": true
+        }
+      },
+      "readOnly": true
+    },
+    "context": {
+      "type": "object",
+      "description": "User provided context",
+      "additionalProperties": true
+    }
+  }
+}

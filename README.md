@@ -28,31 +28,31 @@ npm install @flashcatcloud/miniprogram-rum
 
 ```javascript
 // app.js
-const { flashcatRum } = require('@flashcatcloud/miniprogram-rum')
+const { flashcatRum } = require("@flashcatcloud/miniprogram-rum");
 
 // 在 App() 之前初始化
 flashcatRum.init({
-  clientToken: 'your-client-token',
-  applicationId: 'your-app-id',
+  clientToken: "your-client-token",
+  applicationId: "your-app-id",
   // 方式一：使用默认 FlashCat 站点（推荐）
   // 默认上报到：https://browser.flashcat.cloud/api/v2/rum
-  
+
   // 方式二：自定义站点域名
   // site: 'custom.flashcat.cloud',  // 上报到：https://custom.flashcat.cloud/api/v2/rum
-  
-  // 方式三：完全自定义 endpoint
-  // endpoint: 'https://your-domain.com/custom/path',
-  
-  service: 'my-miniprogram',
-  env: 'production',
-  version: '1.0.0'
-})
+
+  // 方式三：通过代理转发数据
+  // proxy: 'https://proxy.example.com/path',  // 拼接为：{proxy}?ddforward={encodedPath}
+
+  service: "my-miniprogram",
+  env: "production",
+  version: "1.0.0",
+});
 
 App({
   onLaunch() {
-    console.log('App launched')
-  }
-})
+    console.log("App launched");
+  },
+});
 ```
 
 就这么简单！SDK 会自动追踪：
@@ -68,34 +68,34 @@ App({
 除了自动追踪，还可以手动上报业务事件：
 
 ```javascript
-const { flashcatRum } = require('@flashcatcloud/miniprogram-rum')
+const { flashcatRum } = require("@flashcatcloud/miniprogram-rum");
 
 // 上报自定义事件
-flashcatRum.addCustomEvent('商品购买', {
-  productId: '12345',
-  price: 99.99
-})
+flashcatRum.addCustomEvent("商品购买", {
+  productId: "12345",
+  price: 99.99,
+});
 
 // 上报用户操作
-flashcatRum.addAction('点击分享按钮', 'share')
+flashcatRum.addAction("点击分享按钮", "share");
 
 // 上报错误
-flashcatRum.addError('加载失败', 'custom')
+flashcatRum.addError("加载失败", "custom");
 
 // 上报性能指标
-flashcatRum.addTiming('数据加载完成', 1500)
+flashcatRum.addTiming("数据加载完成", 1500);
 
 // 设置用户信息
 flashcatRum.setUser({
-  id: 'user-123',
-  name: 'Zhang San'
-})
+  id: "user-123",
+  name: "Zhang San",
+});
 
 // 设置全局上下文
 flashcatRum.setGlobalContext({
-  platform: 'wechat',
-  channel: 'official'
-})
+  platform: "wechat",
+  channel: "official",
+});
 ```
 
 ## 核心概念
@@ -113,24 +113,24 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 
 ## 配置选项
 
-| 配置项 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `clientToken` | string | ✅ | - | 客户端 Token |
-| `applicationId` | string | ✅ | - | 应用 ID |
-| `site` | string | ❌ | `browser.flashcat.cloud` | FlashCat 站点域名，自动拼接为 `https://{site}/api/v2/rum` |
-| `endpoint` | string | ❌ | - | 完整上报地址（优先级高于 site） |
-| `service` | string | ❌ | - | 服务名称 |
-| `env` | string | ❌ | - | 环境（dev/test/prod） |
-| `version` | string | ❌ | - | 应用版本号 |
-| `sessionSampleRate` | number | ❌ | 100 | 会话采样率（0-100） |
-| `flushInterval` | number | ❌ | 15000 | 上报间隔（毫秒） |
-| `trackPages` | boolean | ❌ | true | 是否追踪页面 |
-| `trackActions` | boolean | ❌ | true | 是否追踪用户交互 |
-| `trackRequests` | boolean | ❌ | true | 是否追踪网络请求 |
-| `trackErrors` | boolean | ❌ | true | 是否追踪错误 |
-| `trackPerformance` | boolean | ❌ | true | 是否追踪性能 |
-| `debug` | boolean | ❌ | false | 是否开启调试模式 |
-| `beforeSend` | function | ❌ | - | 数据过滤钩子 |
+| 配置项              | 类型     | 必填 | 默认值                   | 说明                                                                      |
+| ------------------- | -------- | ---- | ------------------------ | ------------------------------------------------------------------------- |
+| `clientToken`       | string   | ✅   | -                        | 客户端 Token                                                              |
+| `applicationId`     | string   | ✅   | -                        | 应用 ID                                                                   |
+| `site`              | string   | ❌   | `browser.flashcat.cloud` | FlashCat 站点域名，自动拼接为 `https://{site}/api/v2/rum`                 |
+| `proxy`             | string   | ❌   | -                        | 代理地址，SDK 拼接为 `{proxy}?ddforward={encodedPath}`（优先级高于 site） |
+| `service`           | string   | ❌   | -                        | 服务名称                                                                  |
+| `env`               | string   | ❌   | -                        | 环境（dev/test/prod）                                                     |
+| `version`           | string   | ❌   | -                        | 应用版本号                                                                |
+| `sessionSampleRate` | number   | ❌   | 100                      | 会话采样率（0-100）                                                       |
+| `flushInterval`     | number   | ❌   | 15000                    | 上报间隔（毫秒）                                                          |
+| `trackPages`        | boolean  | ❌   | true                     | 是否追踪页面                                                              |
+| `trackActions`      | boolean  | ❌   | true                     | 是否追踪用户交互                                                          |
+| `trackRequests`     | boolean  | ❌   | true                     | 是否追踪网络请求                                                          |
+| `trackErrors`       | boolean  | ❌   | true                     | 是否追踪错误                                                              |
+| `trackPerformance`  | boolean  | ❌   | true                     | 是否追踪性能                                                              |
+| `debug`             | boolean  | ❌   | false                    | 是否开启调试模式                                                          |
+| `beforeSend`        | function | ❌   | -                        | 数据过滤钩子                                                              |
 
 ## API 文档
 
@@ -163,9 +163,9 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 ```javascript
 flashcatRum.init({
   // ...
-  debug: true,  // 开启调试模式，会在控制台输出详细日志
-  flushInterval: 5000,  // 可选：缩短上报间隔方便测试
-})
+  debug: true, // 开启调试模式，会在控制台输出详细日志
+  flushInterval: 5000, // 可选：缩短上报间隔方便测试
+});
 ```
 
 查看控制台中 `[FlashCat RUM]` 开头的日志来诊断问题。

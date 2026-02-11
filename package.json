@@ -7,9 +7,14 @@
   "scripts": {
     "build": "tsc -b packages/*",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
-    "pack:all": "yarn build && cd packages/core && yarn pack --filename flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-core && yarn pack --filename flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack --filename flashcatcloud-miniprogram-rum.tgz"
+    "pack:all": "yarn build && cd packages/core && yarn pack --filename flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-core && yarn pack --filename flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack --filename flashcatcloud-miniprogram-rum.tgz",
+    "rum-events-format:init": "git submodule update --init",
+    "rum-events-format:sync": "git submodule update --init && git submodule update --remote && node scripts/generate-schema-types.js",
+    "rum-events-format:generate": "node scripts/generate-schema-types.js",
+    "postinstall": "git submodule update --init"
   },
   "devDependencies": {
+    "json-schema-to-typescript": "^15.0.0",
     "typescript": "^5.8.3"
   }
 }
