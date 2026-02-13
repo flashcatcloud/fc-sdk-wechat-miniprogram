@@ -10,10 +10,10 @@ export interface RawRumPageEvent extends RawRumEventBase {
   page: {
     id: string
     name: string
-    loadingTime?: number
-    timeSpent?: number
-    documentVersion?: number  // 追踪页面更新次数，每次更新递增
-    isActive?: boolean        // 标识页面是否仍处于活跃状态
+    loading_time?: number      // 页面加载时间（onReady - onLoad）
+    time_spent?: number        // 页面停留时间（当前时间 - startTime）
+    document_version?: number  // 追踪页面更新次数，每次更新递增
+    is_active?: boolean        // 标识页面是否仍处于活跃状态
   }
 }
 
@@ -22,9 +22,9 @@ export interface RawRumRequestEvent extends RawRumEventBase {
   request: {
     url: string
     method: string
-    statusCode?: number
+    status_code?: number       // HTTP 状态码
     duration: number
-    errorMessage?: string
+    error_message?: string     // 错误信息
   }
 }
 

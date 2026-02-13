@@ -15,9 +15,9 @@ export function startRequestCollection(
       request: {
         url: event.url,
         method: event.method,
-        statusCode: event.statusCode,
+        status_code: event.statusCode,
         duration: event.duration,
-        errorMessage: event.errorMessage,
+        error_message: event.errorMessage,
       },
     });
   });

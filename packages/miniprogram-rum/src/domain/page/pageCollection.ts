@@ -21,7 +21,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
     const intervalId = setInterval(() => {
       if (!page) return
 
-      const timeSpent = Date.now() - page.startTime
+      const time_spent = Date.now() - page.startTime
       page.documentVersion = (page.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -30,9 +30,9 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
         page: {
           id: page.id,
           name: page.name,
-          timeSpent,
-          documentVersion: page.documentVersion,
-          isActive: true,
+          time_spent,
+          document_version: page.documentVersion,
+          is_active: true,
         },
       })
     }, PAGE_UPDATE_INTERVAL)
@@ -49,9 +49,55 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
   }
 
   const subscription = pageObservable.subscribe((event) => {
-    // load 或首次 show：创建新页面并开始更新
-    if (event.lifecycle === 'load' || (event.lifecycle === 'show' && !currentPage)) {
+    // load：创建新页面，记录 loadTime
+    if (event.lifecycle === 'load') {
       // 清理之前的定时器（如果存在）
+      stopPageUpdate(currentPage)
+
+      currentPage = {
+        id: `${event.time}-${Math.random().toString(16).slice(2)}`,
+        name: event.route || 'unknown',
+        startTime: event.time,
+        loadTime: event.time,  // 记录 load 时间，用于计算 loading_time
+        documentVersion: 0,
+      }
+
+      lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
+      lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+        date: event.time,
+        type: 'page',
+        page: {
+          id: currentPage.id,
+          name: currentPage.name,
+          document_version: currentPage.documentVersion,
+          is_active: true,
+        },
+      })
+
+      // 开始周期性更新
+      currentPage.updateIntervalId = schedulePageUpdate(currentPage)
+    }
+
+    // ready：计算并上报 loading_time
+    if (event.lifecycle === 'ready' && currentPage && currentPage.loadTime) {
+      const loading_time = event.time - currentPage.loadTime
+      currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
+
+      lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+        date: event.time,
+        type: 'page',
+        page: {
+          id: currentPage.id,
+          name: currentPage.name,
+          loading_time,
+          document_version: currentPage.documentVersion,
+          is_active: true,
+        },
+      })
+    }
+
+    // 首次 show（无 currentPage）：创建新页面
+    if (event.lifecycle === 'show' && !currentPage) {
       stopPageUpdate(currentPage)
 
       currentPage = {
@@ -68,19 +114,18 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
         page: {
           id: currentPage.id,
           name: currentPage.name,
-          documentVersion: currentPage.documentVersion,
-          isActive: true,
+          document_version: currentPage.documentVersion,
+          is_active: true,
         },
       })
 
-      // 开始周期性更新
       currentPage.updateIntervalId = schedulePageUpdate(currentPage)
     }
 
     // 从后台恢复（hide 后的 show）：恢复定时器
     if (event.lifecycle === 'show' && currentPage && !currentPage.updateIntervalId) {
-      // 发送 show 事件（带当前 timeSpent）
-      const timeSpent = event.time - currentPage.startTime
+      // 发送 show 事件（带当前 time_spent）
+      const time_spent = event.time - currentPage.startTime
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -89,9 +134,9 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
         page: {
           id: currentPage.id,
           name: currentPage.name,
-          timeSpent,
-          documentVersion: currentPage.documentVersion,
-          isActive: true,
+          time_spent,
+          document_version: currentPage.documentVersion,
+          is_active: true,
         },
       })
 
@@ -105,7 +150,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       stopPageUpdate(currentPage)
 
       // 发送 hide 时的状态
-      const timeSpent = event.time - currentPage.startTime
+      const time_spent = event.time - currentPage.startTime
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -114,9 +159,9 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
         page: {
           id: currentPage.id,
           name: currentPage.name,
-          timeSpent,
-          documentVersion: currentPage.documentVersion,
-          isActive: false,
+          time_spent,
+          document_version: currentPage.documentVersion,
+          is_active: false,
         },
       })
     }
@@ -127,7 +172,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       stopPageUpdate(currentPage)
 
       // 发送最终事件
-      const timeSpent = event.time - currentPage.startTime
+      const time_spent = event.time - currentPage.startTime
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -136,9 +181,9 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
         page: {
           id: currentPage.id,
           name: currentPage.name,
-          timeSpent,
-          documentVersion: currentPage.documentVersion,
-          isActive: false,
+          time_spent,
+          document_version: currentPage.documentVersion,
+          is_active: false,
         },
       })
 
@@ -171,8 +216,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
         page: {
           id: currentPage.id,
           name: currentPage.name,
-          documentVersion: currentPage.documentVersion,
-          isActive: true,
+          document_version: currentPage.documentVersion,
+          is_active: true,
         },
       })
 
