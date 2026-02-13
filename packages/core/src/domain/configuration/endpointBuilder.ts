@@ -95,6 +95,7 @@ function buildEndpointParameters(
 ): string {
   const tags = [
     `sdk_version:${SDK_VERSION}`,
+    `api:miniapp`,
   ].concat(configurationTags);
 
   const parameters = [

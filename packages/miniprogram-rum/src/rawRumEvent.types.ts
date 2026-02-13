@@ -12,6 +12,8 @@ export interface RawRumPageEvent extends RawRumEventBase {
     name: string
     loadingTime?: number
     timeSpent?: number
+    documentVersion?: number  // 追踪页面更新次数，每次更新递增
+    isActive?: boolean        // 标识页面是否仍处于活跃状态
   }
 }
 

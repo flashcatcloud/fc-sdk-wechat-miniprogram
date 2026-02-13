@@ -2,6 +2,8 @@ export interface PageHistoryEntry {
   id: string
   name: string
   startTime: number
+  documentVersion?: number
+  updateIntervalId?: number  // 用于存储定时器 ID，便于清理
 }
 
 export function createPageHistory() {
