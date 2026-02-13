@@ -39,3 +39,14 @@ export type {
 export { createFlushController } from "./transport/flushController";
 export type { Batch, Payload, HttpRequest } from "./transport/batch";
 export { createBatch } from "./transport/batch";
+
+export type { TraceContext } from "./domain/tracing/traceContext";
+export {
+  generateTraceId,
+  generateSpanId,
+  createTraceContext,
+  createChildSpan,
+  generateTraceparent,
+  parseTraceparent,
+  isValidTraceContext,
+} from "./domain/tracing/traceContext";

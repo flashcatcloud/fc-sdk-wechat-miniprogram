@@ -36,11 +36,15 @@ export function startRum(
       trackRequests: configuration.trackRequests,
       trackErrors: configuration.trackErrors,
       trackPerformance: configuration.trackPerformance,
+      tracing: configuration.tracing.enabled ? {
+        enabled: configuration.tracing.enabled,
+        sampleRate: configuration.tracing.sampleRate,
+      } : 'disabled',
     });
   }
 
   const { pageObservable, actionObservable } = initPageObservable();
-  const { observable: requestObservable } = initRequestObservable(adapter);
+  const { observable: requestObservable } = initRequestObservable(adapter, configuration.tracing);
   const { errorObservable, unhandledRejectionObservable } =
     initAppObservable(adapter);
 
