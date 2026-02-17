@@ -10,10 +10,15 @@ export interface RawRumPageEvent extends RawRumEventBase {
   page: {
     id: string
     name: string
-    loading_time?: number      // 页面加载时间（onReady - onLoad）
-    time_spent?: number        // 页面停留时间（当前时间 - startTime）
-    document_version?: number  // 追踪页面更新次数，每次更新递增
-    is_active?: boolean        // 标识页面是否仍处于活跃状态
+    referrer?: string                                  // 来源页面路由
+    loading_type?: 'initial_load' | 'route_change'     // 加载类型
+    loading_time?: number                              // 页面加载时间（onReady - onLoad）
+    time_spent?: number                                // 页面停留时间（当前时间 - startTime）
+    document_version?: number                          // 追踪页面更新次数，每次更新递增
+    is_active?: boolean                                // 标识页面是否仍处于活跃状态
+    action?: { count: number }                         // 当前页面的操作计数
+    error?: { count: number }                          // 当前页面的错误计数
+    request?: { count: number }                        // 当前页面的请求计数
   }
 }
 

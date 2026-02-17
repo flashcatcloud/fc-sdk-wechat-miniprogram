@@ -3,6 +3,8 @@ export interface PageHistoryEntry {
   name: string
   startTime: number
   loadTime?: number          // 页面 onLoad 时间，用于计算 loading_time
+  referrer?: string          // 来源页面路由
+  loadingType?: 'initial_load' | 'route_change'  // 加载类型
   documentVersion?: number
   updateIntervalId?: number  // 用于存储定时器 ID，便于清理
 }

@@ -3,6 +3,9 @@ import type { PageEvent } from '@flashcatcloud/miniprogram-platform'
 import { LifeCycleEventType } from '../lifeCycle'
 import type { LifeCycle } from '../lifeCycle'
 import type { PageHistoryEntry } from '../contexts/pageHistory'
+import { PageContextManager } from '../contexts/pageContextManager'
+import { EventCountsTracker } from '../contexts/eventCountsTracker'
+import type { RawRumPageEvent } from '../../rawRumEvent.types'
 
 export interface PageCollection {
   stop: () => void
@@ -15,6 +18,30 @@ const PAGE_UPDATE_INTERVAL = 3000 // 3秒
 
 export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observable<PageEvent>) {
   let currentPage: PageHistoryEntry | undefined
+  const pageContextManager = new PageContextManager()
+  const eventCountsTracker = new EventCountsTracker(lifeCycle)
+
+  /**
+   * 构建当前页面的 page 事件数据
+   */
+  function buildPageEventData(
+    page: PageHistoryEntry,
+    overrides: Partial<RawRumPageEvent['page']> = {}
+  ): RawRumPageEvent['page'] {
+    const counts = eventCountsTracker.getCounts()
+    return {
+      id: page.id,
+      name: page.name,
+      referrer: page.referrer,
+      loading_type: page.loadingType,
+      document_version: page.documentVersion,
+      is_active: true,
+      action: { count: counts.actionCount },
+      error: { count: counts.errorCount },
+      request: { count: counts.requestCount },
+      ...overrides,
+    }
+  }
 
   // 周期性更新函数
   function schedulePageUpdate(page: PageHistoryEntry) {
@@ -27,13 +54,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: Date.now(),
         type: 'page',
-        page: {
-          id: page.id,
-          name: page.name,
-          time_spent,
-          document_version: page.documentVersion,
-          is_active: true,
-        },
+        page: buildPageEventData(page, { time_spent }),
       })
     }, PAGE_UPDATE_INTERVAL)
 
@@ -54,11 +75,19 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       // 清理之前的定时器（如果存在）
       stopPageUpdate(currentPage)
 
+      // 重置计数器（新页面从 0 开始统计）
+      eventCountsTracker.reset()
+
+      const referrer = pageContextManager.getReferrer()
+      const loadingType = pageContextManager.getLoadingType()
+
       currentPage = {
         id: `${event.time}-${Math.random().toString(16).slice(2)}`,
         name: event.route || 'unknown',
         startTime: event.time,
-        loadTime: event.time,  // 记录 load 时间，用于计算 loading_time
+        loadTime: event.time,
+        referrer,
+        loadingType,
         documentVersion: 0,
       }
 
@@ -66,12 +95,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          document_version: currentPage.documentVersion,
-          is_active: true,
-        },
+        page: buildPageEventData(currentPage),
       })
 
       // 开始周期性更新
@@ -86,13 +110,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          loading_time,
-          document_version: currentPage.documentVersion,
-          is_active: true,
-        },
+        page: buildPageEventData(currentPage, { loading_time }),
       })
     }
 
@@ -100,10 +118,18 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
     if (event.lifecycle === 'show' && !currentPage) {
       stopPageUpdate(currentPage)
 
+      // 重置计数器
+      eventCountsTracker.reset()
+
+      const referrer = pageContextManager.getReferrer()
+      const loadingType = pageContextManager.getLoadingType()
+
       currentPage = {
         id: `${event.time}-${Math.random().toString(16).slice(2)}`,
         name: event.route || 'unknown',
         startTime: event.time,
+        referrer,
+        loadingType,
         documentVersion: 0,
       }
 
@@ -111,12 +137,7 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          document_version: currentPage.documentVersion,
-          is_active: true,
-        },
+        page: buildPageEventData(currentPage),
       })
 
       currentPage.updateIntervalId = schedulePageUpdate(currentPage)
@@ -124,20 +145,13 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
     // 从后台恢复（hide 后的 show）：恢复定时器
     if (event.lifecycle === 'show' && currentPage && !currentPage.updateIntervalId) {
-      // 发送 show 事件（带当前 time_spent）
       const time_spent = event.time - currentPage.startTime
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          time_spent,
-          document_version: currentPage.documentVersion,
-          is_active: true,
-        },
+        page: buildPageEventData(currentPage, { time_spent }),
       })
 
       // 恢复周期性更新
@@ -146,45 +160,29 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
     // hide：暂停更新，但保留页面状态
     if (event.lifecycle === 'hide' && currentPage) {
-      // 停止定时器
       stopPageUpdate(currentPage)
 
-      // 发送 hide 时的状态
       const time_spent = event.time - currentPage.startTime
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          time_spent,
-          document_version: currentPage.documentVersion,
-          is_active: false,
-        },
+        page: buildPageEventData(currentPage, { time_spent, is_active: false }),
       })
     }
 
     // unload：停止更新并发送最终事件
     if (event.lifecycle === 'unload' && currentPage) {
-      // 停止定时器
       stopPageUpdate(currentPage)
 
-      // 发送最终事件
       const time_spent = event.time - currentPage.startTime
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          time_spent,
-          document_version: currentPage.documentVersion,
-          is_active: false,
-        },
+        page: buildPageEventData(currentPage, { time_spent, is_active: false }),
       })
 
       currentPage = undefined
@@ -193,35 +191,36 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
   return {
     stop: () => {
-      // 清理定时器
       stopPageUpdate(currentPage)
+      eventCountsTracker.stop()
       subscription.unsubscribe()
     },
     getCurrentPage: () => currentPage,
     startManualPage: (name: string) => {
-      // 清理之前的定时器
       stopPageUpdate(currentPage)
 
+      // 重置计数器
+      eventCountsTracker.reset()
+
       const time = Date.now()
+      const referrer = pageContextManager.getReferrer()
+      const loadingType = pageContextManager.getLoadingType()
+
       currentPage = {
         id: `${time}-${Math.random().toString(16).slice(2)}`,
         name,
         startTime: time,
+        referrer,
+        loadingType,
         documentVersion: 0,
       }
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: time,
         type: 'page',
-        page: {
-          id: currentPage.id,
-          name: currentPage.name,
-          document_version: currentPage.documentVersion,
-          is_active: true,
-        },
+        page: buildPageEventData(currentPage),
       })
 
-      // 开始周期性更新
       currentPage.updateIntervalId = schedulePageUpdate(currentPage)
     },
   }
