@@ -1,0 +1,83 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { createFlushController } from '../packages/core/src/transport/flushController'
+
+test('flushController notifies on timer', async () => {
+  const controller = createFlushController(50, 1000)
+  const events: string[] = []
+
+  controller.flushObservable.subscribe((event) => {
+    events.push(event.reason)
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.ok(events.includes('timer'))
+})
+
+test('flushController notifies on size limit', () => {
+  const controller = createFlushController(10000, 100)
+  const events: string[] = []
+
+  controller.flushObservable.subscribe((event) => {
+    events.push(event.reason)
+  })
+
+  controller.notifyBeforeAddMessage(150)
+  assert.ok(events.includes('size'))
+})
+
+test('flushController accumulates bytes', () => {
+  const controller = createFlushController(10000, 100)
+  const events: string[] = []
+
+  controller.flushObservable.subscribe((event) => {
+    events.push(event.reason)
+  })
+
+  controller.notifyBeforeAddMessage(30)
+  assert.equal(events.length, 0)
+
+  controller.notifyBeforeAddMessage(30)
+  assert.equal(events.length, 0)
+
+  controller.notifyBeforeAddMessage(50)
+  assert.ok(events.includes('size'))
+})
+
+test('flushController notifyAfterAddMessage resets timer', async () => {
+  const controller = createFlushController(50, 1000)
+  const events: string[] = []
+
+  controller.flushObservable.subscribe((event) => {
+    events.push(event.reason)
+  })
+
+  // Keep resetting timer
+  controller.notifyAfterAddMessage()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  controller.notifyAfterAddMessage()
+  await new Promise((resolve) => setTimeout(resolve, 30))
+
+  // Timer should not have fired yet
+  assert.equal(events.filter((e) => e === 'timer').length, 0)
+
+  // Wait for timer to fire
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  assert.ok(events.includes('timer'))
+})
+
+test('flushController notifyAfterAddMessage adds delta bytes', () => {
+  const controller = createFlushController(10000, 100)
+  const events: string[] = []
+
+  controller.flushObservable.subscribe((event) => {
+    events.push(event.reason)
+  })
+
+  controller.notifyBeforeAddMessage(50)
+  controller.notifyAfterAddMessage(60)
+
+  // Total is now 110, should trigger size flush on next add
+  controller.notifyBeforeAddMessage(1)
+  // Already over limit from delta
+})

@@ -5,6 +5,8 @@
     "packages/*"
   ],
   "scripts": {
+    "test": "node --import tsx --test test/*.test.ts",
+    "test:coverage": "c8 --include 'packages/*/src/**/*.ts' --exclude 'packages/*/src/**/*.types.ts' node --import tsx --test test/*.test.ts",
     "build": "tsc -b packages/*",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
     "pack:all": "yarn build && cd packages/core && yarn pack --filename flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-core && yarn pack --filename flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack --filename flashcatcloud-miniprogram-rum.tgz",
@@ -14,7 +16,10 @@
     "postinstall": "git submodule update --init"
   },
   "devDependencies": {
+    "@types/node": "^25.3.0",
+    "c8": "^11.0.0",
     "json-schema-to-typescript": "^15.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.3"
   }
 }
