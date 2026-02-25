@@ -7,7 +7,13 @@ export interface RumInitConfiguration extends InitConfiguration {
   trackErrors?: boolean
   trackPerformance?: boolean
   trackPages?: boolean
-  
+
+  /**
+   * 事件速率限制阈值（每分钟每种事件类型的最大数量）
+   * @default 3000
+   */
+  eventRateLimiterThreshold?: number
+
   /**
    * 分布式追踪配置
    */
@@ -44,6 +50,7 @@ export interface RumConfiguration extends Configuration {
   trackErrors: boolean
   trackPerformance: boolean
   trackPages: boolean
+  eventRateLimiterThreshold: number
   tracing: {
     enabled: boolean
     sampleRate: number
@@ -66,6 +73,7 @@ export function validateAndBuildRumConfiguration(
     trackErrors: initConfiguration.trackErrors ?? true,
     trackPerformance: initConfiguration.trackPerformance ?? true,
     trackPages: initConfiguration.trackPages ?? true,
+    eventRateLimiterThreshold: initConfiguration.eventRateLimiterThreshold ?? 3000,
     tracing: {
       enabled: initConfiguration.tracing?.enabled ?? false,
       sampleRate: initConfiguration.tracing?.sampleRate ?? 1.0,

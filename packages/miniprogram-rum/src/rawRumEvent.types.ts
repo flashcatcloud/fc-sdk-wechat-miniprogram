@@ -39,6 +39,7 @@ export interface RawRumErrorEvent extends RawRumEventBase {
     message: string
     stack?: string
     source: 'app' | 'promise' | 'custom'
+    fingerprint?: string
   }
 }
 

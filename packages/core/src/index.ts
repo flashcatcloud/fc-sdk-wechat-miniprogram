@@ -50,3 +50,9 @@ export {
   parseTraceparent,
   isValidTraceContext,
 } from "./domain/tracing/traceContext";
+
+export type {
+  EventRateLimiter,
+  RateLimitError,
+} from "./domain/eventRateLimiter/createEventRateLimiter";
+export { createEventRateLimiter } from "./domain/eventRateLimiter/createEventRateLimiter";
