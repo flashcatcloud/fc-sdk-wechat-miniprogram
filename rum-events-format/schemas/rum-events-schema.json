@@ -6,7 +6,7 @@
   "description": "Schema of all properties of a miniprogram RUM event",
   "oneOf": [
     {
-      "$ref": "rum/page-schema.json"
+      "$ref": "rum/view-schema.json"
     },
     {
       "$ref": "rum/request-schema.json"

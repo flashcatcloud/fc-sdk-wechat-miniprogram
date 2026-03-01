@@ -5,7 +5,7 @@ import type { LifeCycle } from '../lifeCycle'
 import type { PageHistoryEntry } from '../contexts/pageHistory'
 import { PageContextManager } from '../contexts/pageContextManager'
 import { EventCountsTracker } from '../contexts/eventCountsTracker'
-import type { RawRumPageEvent } from '../../rawRumEvent.types'
+import type { RawRumViewEvent } from '../../rawRumEvent.types'
 
 export interface PageCollection {
   stop: () => void
@@ -26,8 +26,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
    */
   function buildPageEventData(
     page: PageHistoryEntry,
-    overrides: Partial<RawRumPageEvent['page']> = {}
-  ): RawRumPageEvent['page'] {
+    overrides: Partial<RawRumViewEvent['view']> = {}
+  ): RawRumViewEvent['view'] {
     const counts = eventCountsTracker.getCounts()
     return {
       id: page.id,
@@ -53,8 +53,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: Date.now(),
-        type: 'page',
-        page: buildPageEventData(page, { time_spent }),
+        type: 'view',
+        view: buildPageEventData(page, { time_spent }),
       })
     }, PAGE_UPDATE_INTERVAL)
 
@@ -94,8 +94,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
-        type: 'page',
-        page: buildPageEventData(currentPage),
+        type: 'view',
+        view: buildPageEventData(currentPage),
       })
 
       // 开始周期性更新
@@ -109,8 +109,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
-        type: 'page',
-        page: buildPageEventData(currentPage, { loading_time }),
+        type: 'view',
+        view: buildPageEventData(currentPage, { loading_time }),
       })
     }
 
@@ -136,8 +136,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
-        type: 'page',
-        page: buildPageEventData(currentPage),
+        type: 'view',
+        view: buildPageEventData(currentPage),
       })
 
       currentPage.updateIntervalId = schedulePageUpdate(currentPage)
@@ -150,8 +150,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
-        type: 'page',
-        page: buildPageEventData(currentPage, { time_spent }),
+        type: 'view',
+        view: buildPageEventData(currentPage, { time_spent }),
       })
 
       // 恢复周期性更新
@@ -167,8 +167,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
-        type: 'page',
-        page: buildPageEventData(currentPage, { time_spent, is_active: false }),
+        type: 'view',
+        view: buildPageEventData(currentPage, { time_spent, is_active: false }),
       })
     }
 
@@ -181,8 +181,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
-        type: 'page',
-        page: buildPageEventData(currentPage, { time_spent, is_active: false }),
+        type: 'view',
+        view: buildPageEventData(currentPage, { time_spent, is_active: false }),
       })
 
       currentPage = undefined
@@ -217,8 +217,8 @@ export function startPageCollection(lifeCycle: LifeCycle, pageObservable: Observ
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: time,
-        type: 'page',
-        page: buildPageEventData(currentPage),
+        type: 'view',
+        view: buildPageEventData(currentPage),
       })
 
       currentPage.updateIntervalId = schedulePageUpdate(currentPage)

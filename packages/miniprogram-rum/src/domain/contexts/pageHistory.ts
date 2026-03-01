@@ -6,7 +6,7 @@ export interface PageHistoryEntry {
   referrer?: string          // 来源页面路由
   loadingType?: 'initial_load' | 'route_change'  // 加载类型
   documentVersion?: number
-  updateIntervalId?: number  // 用于存储定时器 ID，便于清理
+  updateIntervalId?: ReturnType<typeof setInterval>  // 用于存储定时器 ID，便于清理
 }
 
 export function createPageHistory() {

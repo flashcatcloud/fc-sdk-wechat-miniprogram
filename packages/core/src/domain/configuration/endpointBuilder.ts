@@ -7,9 +7,12 @@ export type TrackType = "rum";
 /**
  * proxy 为函数类型时的签名
  * path: /api/v2/rum
- * parameters: encoding=xxx&...
+ * parameters: ddsource=miniapp&dd-api-key=xxx&...
  */
-export type ProxyFn = (options: { path: string; parameters: string }) => string;
+export type ProxyFn = (options: {
+  path: string;
+  parameters: string;
+}) => string;
 
 export interface EndpointBuilder {
   trackType: TrackType;

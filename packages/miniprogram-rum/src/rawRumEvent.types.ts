@@ -1,24 +1,24 @@
-export type RumEventType = 'page' | 'request' | 'error' | 'action' | 'performance' | 'custom'
+export type RumEventType = 'view' | 'request' | 'error' | 'action' | 'performance' | 'custom'
 
 export interface RawRumEventBase {
   date: number
   type: RumEventType
 }
 
-export interface RawRumPageEvent extends RawRumEventBase {
-  type: 'page'
-  page: {
+export interface RawRumViewEvent extends RawRumEventBase {
+  type: 'view'
+  view: {
     id: string
     name: string
-    referrer?: string                                  // 来源页面路由
-    loading_type?: 'initial_load' | 'route_change'     // 加载类型
-    loading_time?: number                              // 页面加载时间（onReady - onLoad）
-    time_spent?: number                                // 页面停留时间（当前时间 - startTime）
-    document_version?: number                          // 追踪页面更新次数，每次更新递增
-    is_active?: boolean                                // 标识页面是否仍处于活跃状态
-    action?: { count: number }                         // 当前页面的操作计数
-    error?: { count: number }                          // 当前页面的错误计数
-    request?: { count: number }                        // 当前页面的请求计数
+    referrer?: string
+    loading_type?: 'initial_load' | 'route_change'
+    loading_time?: number
+    time_spent?: number
+    document_version?: number
+    is_active?: boolean
+    action?: { count: number }
+    error?: { count: number }
+    request?: { count: number }
   }
 }
 
@@ -68,7 +68,7 @@ export interface RawRumCustomEvent extends RawRumEventBase {
 }
 
 export type RawRumEvent =
-  | RawRumPageEvent
+  | RawRumViewEvent
   | RawRumRequestEvent
   | RawRumErrorEvent
   | RawRumActionEvent

@@ -30,7 +30,7 @@ export function createBatch({
   messageBytesLimit: number;
 }): Batch {
   const flushSubscription = flushController.flushObservable.subscribe((event) =>
-    flush(event)
+    flush(event),
   );
 
   function add(message: Record<string, unknown>) {
@@ -43,7 +43,7 @@ export function createBatch({
     }
     flushController.notifyBeforeAddMessage(serializedMessage.length);
     encoder.write(
-      encoder.isEmpty ? serializedMessage : `\n${serializedMessage}`
+      encoder.isEmpty ? serializedMessage : `\n${serializedMessage}`,
     );
     flushController.notifyAfterAddMessage();
   }

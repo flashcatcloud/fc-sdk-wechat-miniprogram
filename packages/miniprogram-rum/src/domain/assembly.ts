@@ -55,11 +55,13 @@ export function startRumAssembly({
 
     const session = sessionManager.findTrackedSession() || sessionManager.renew()
     const page = getCurrentPage()
+    const rawView = 'view' in rawEvent ? (rawEvent as Record<string, any>).view : undefined
     const rumEvent: RumEvent = {
       ...rawEvent,
       application: { id: configuration.applicationId },
       session: { id: session.id },
       view: {
+        ...rawView,
         id: page?.id || 'unknown',
         name: page?.name || 'unknown',
       },

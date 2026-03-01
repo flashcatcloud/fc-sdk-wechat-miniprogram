@@ -1,30 +1,30 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema",
-  "$id": "rum/page-schema.json",
-  "title": "RumPageEvent",
+  "$id": "rum/view-schema.json",
+  "title": "RumViewEvent",
   "type": "object",
-  "description": "Schema of all properties of a Page event",
+  "description": "Schema of all properties of a View event",
   "allOf": [
     {
       "$ref": "_common-schema.json"
     },
     {
-      "required": ["type", "page"],
+      "required": ["type", "view"],
       "properties": {
         "type": {
           "type": "string",
           "description": "RUM event type",
-          "const": "page",
+          "const": "view",
           "readOnly": true
         },
-        "page": {
+        "view": {
           "type": "object",
-          "description": "Page properties",
+          "description": "View properties",
           "required": ["id", "name"],
           "properties": {
             "id": {
               "type": "string",
-              "description": "UUID of the page",
+              "description": "UUID of the view",
               "readOnly": true
             },
             "name": {
@@ -34,13 +34,13 @@
             },
             "loading_time": {
               "type": "integer",
-              "description": "Page loading time in ns",
+              "description": "View loading time in ns",
               "minimum": 0,
               "readOnly": true
             },
             "time_spent": {
               "type": "integer",
-              "description": "Time spent on page in ns",
+              "description": "Time spent on view in ns",
               "minimum": 0,
               "readOnly": true
             }
