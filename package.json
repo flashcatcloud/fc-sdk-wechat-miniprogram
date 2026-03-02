@@ -10,7 +10,6 @@
     "build": "tsc -b packages/*",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo dist",
     "pack:all": "yarn build && cd packages/core && yarn pack --filename flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-core && yarn pack --filename flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack --filename flashcatcloud-miniprogram-rum.tgz",
-    "pack:local": "yarn build && mkdir -p dist && cd packages/core && yarn pack -o ../../dist/flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-core && yarn pack -o ../../dist/flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack -o ../../dist/flashcatcloud-miniprogram-rum.tgz && echo '\n✅ Packages built to dist/\n\nInstall in your miniprogram project:\n  npm install /path/to/fc-sdk-wechat-miniprogram/dist/flashcatcloud-miniprogram-rum.tgz'",
     "rum-events-format:init": "git submodule update --init",
     "rum-events-format:sync": "git submodule update --init && git submodule update --remote && node scripts/generate-schema-types.js",
     "rum-events-format:generate": "node scripts/generate-schema-types.js",
