@@ -1,6 +1,9 @@
 import type { RawRumEvent } from "./rawRumEvent.types";
 
 export type RumEvent = RawRumEvent & {
+  _dd?: {
+    document_version: number;
+  };
   application: {
     id: string;
   };

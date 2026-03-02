@@ -5,7 +5,7 @@ export interface PageHistoryEntry {
   loadTime?: number          // 页面 onLoad 时间，用于计算 loading_time
   referrer?: string          // 来源页面路由
   loadingType?: 'initial_load' | 'route_change'  // 加载类型
-  documentVersion?: number
+  documentVersion: number
   updateIntervalId?: ReturnType<typeof setInterval>  // 用于存储定时器 ID，便于清理
 }
 
@@ -17,6 +17,7 @@ export function createPageHistory() {
       id: `${time}-${Math.random().toString(16).slice(2)}`,
       name,
       startTime: time,
+      documentVersion: 0,
     }
     return current
   }

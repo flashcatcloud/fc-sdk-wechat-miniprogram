@@ -19,14 +19,6 @@ export function startPerformanceCollection(lifeCycle: LifeCycle, pageObservable:
           value: duration,
           time: event.time,
         })
-        lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-          date: event.time,
-          type: 'performance',
-          performance: {
-            name: 'page_ready',
-            value: duration,
-          },
-        })
         pageStartTimes.delete(event.route)
       }
     }

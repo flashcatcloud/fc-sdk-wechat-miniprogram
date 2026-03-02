@@ -124,11 +124,6 @@ export function startRum(
         value: value ?? 0,
         time: Date.now(),
       });
-      lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: Date.now(),
-        type: "performance",
-        performance: { name, value: value ?? 0 },
-      });
     },
     stop: () => {
       rumBatch.stop();

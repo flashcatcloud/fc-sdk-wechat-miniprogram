@@ -1,4 +1,4 @@
-export type RumEventType = 'view' | 'request' | 'error' | 'action' | 'performance' | 'custom'
+export type RumEventType = 'view' | 'request' | 'error' | 'action' | 'custom'
 
 export interface RawRumEventBase {
   date: number
@@ -7,6 +7,9 @@ export interface RawRumEventBase {
 
 export interface RawRumViewEvent extends RawRumEventBase {
   type: 'view'
+  _dd: {
+    document_version: number
+  }
   view: {
     id: string
     name: string
@@ -14,7 +17,6 @@ export interface RawRumViewEvent extends RawRumEventBase {
     loading_type?: 'initial_load' | 'route_change'
     loading_time?: number
     time_spent?: number
-    document_version?: number
     is_active?: boolean
     action?: { count: number }
     error?: { count: number }
@@ -27,9 +29,9 @@ export interface RawRumRequestEvent extends RawRumEventBase {
   request: {
     url: string
     method: string
-    status_code?: number       // HTTP 状态码
+    status_code?: number
     duration: number
-    error_message?: string     // 错误信息
+    error_message?: string
   }
 }
 
@@ -51,14 +53,6 @@ export interface RawRumActionEvent extends RawRumEventBase {
   }
 }
 
-export interface RawRumPerformanceEvent extends RawRumEventBase {
-  type: 'performance'
-  performance: {
-    name: string
-    value: number
-  }
-}
-
 export interface RawRumCustomEvent extends RawRumEventBase {
   type: 'custom'
   event: {
@@ -72,5 +66,4 @@ export type RawRumEvent =
   | RawRumRequestEvent
   | RawRumErrorEvent
   | RawRumActionEvent
-  | RawRumPerformanceEvent
   | RawRumCustomEvent
