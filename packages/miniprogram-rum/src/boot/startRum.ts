@@ -48,7 +48,7 @@ export function startRum(
   const { appObservable, errorObservable, unhandledRejectionObservable } =
     initAppObservable(adapter);
 
-  const pageCollection = startPageCollection(lifeCycle, pageObservable);
+  const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration);
   const requestCollection = configuration.trackRequests
     ? startRequestCollection(lifeCycle, requestObservable)
     : undefined;

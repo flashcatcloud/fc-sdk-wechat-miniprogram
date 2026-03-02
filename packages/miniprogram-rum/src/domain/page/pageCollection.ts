@@ -1,11 +1,13 @@
 import type { Observable } from "@flashcatcloud/miniprogram-core";
 import type { PageEvent } from "@flashcatcloud/miniprogram-platform";
+import { generateUUID } from "@flashcatcloud/miniprogram-core";
 import { LifeCycleEventType } from "../lifeCycle";
 import type { LifeCycle } from "../lifeCycle";
 import type { PageHistoryEntry } from "../contexts/pageHistory";
 import { PageContextManager } from "../contexts/pageContextManager";
 import { EventCountsTracker } from "../contexts/eventCountsTracker";
 import type { RawRumViewEvent } from "../../rawRumEvent.types";
+import type { RumConfiguration } from "../configuration/configuration";
 
 export interface PageCollection {
   stop: () => void;
@@ -19,6 +21,7 @@ const PAGE_UPDATE_INTERVAL = 3000; // 3秒
 export function startPageCollection(
   lifeCycle: LifeCycle,
   pageObservable: Observable<PageEvent>,
+  configuration: RumConfiguration,
 ) {
   let currentPage: PageHistoryEntry | undefined;
   const pageContextManager = new PageContextManager();
@@ -34,14 +37,28 @@ export function startPageCollection(
     const counts = eventCountsTracker.getCounts();
     return {
       id: page.id,
+      url: page.name,
       name: page.name,
       referrer: page.referrer,
       loading_type: page.loadingType,
       is_active: true,
       action: { count: counts.actionCount },
       error: { count: counts.errorCount },
-      request: { count: counts.requestCount },
+      resource: { count: counts.resourceCount },
       ...overrides,
+    };
+  }
+
+  function buildDdData(page: PageHistoryEntry): RawRumViewEvent["_dd"] {
+    return {
+      document_version: page.documentVersion,
+      format_version: 2,
+      page_states: page.pageStates,
+      configuration: {
+        session_sample_rate: configuration.sessionSampleRate,
+        session_replay_sample_rate: 0,
+        start_session_replay_recording_manually: false,
+      },
     };
   }
 
@@ -57,7 +74,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: now,
         type: "view",
-        _dd: { document_version: page.documentVersion },
+        _dd: buildDdData(page),
         view: buildPageEventData(page, { time_spent }),
       });
     }, PAGE_UPDATE_INTERVAL);
@@ -73,6 +90,16 @@ export function startPageCollection(
     }
   }
 
+  function addPageState(page: PageHistoryEntry, state: string, time: number) {
+    if (!page.pageStates) {
+      page.pageStates = [];
+    }
+    page.pageStates.push({
+      state,
+      start: time - page.startTime,
+    });
+  }
+
   const subscription = pageObservable.subscribe((event) => {
     // load：创建新页面，记录 loadTime
     if (event.lifecycle === "load") {
@@ -86,7 +113,7 @@ export function startPageCollection(
       const loadingType = pageContextManager.getLoadingType();
 
       currentPage = {
-        id: `${event.time}-${Math.random().toString(16).slice(2)}`,
+        id: generateUUID(),
         name: event.route || "unknown",
         startTime: event.time,
         loadTime: event.time,
@@ -100,7 +127,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: "view",
-        _dd: { document_version: loadPage.documentVersion },
+        _dd: buildDdData(loadPage),
         view: buildPageEventData(loadPage),
       });
 
@@ -116,7 +143,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: "view",
-        _dd: { document_version: currentPage.documentVersion },
+        _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { loading_time }),
       });
     }
@@ -132,7 +159,7 @@ export function startPageCollection(
       const loadingType = pageContextManager.getLoadingType();
 
       currentPage = {
-        id: `${event.time}-${Math.random().toString(16).slice(2)}`,
+        id: generateUUID(),
         name: event.route || "unknown",
         startTime: event.time,
         referrer,
@@ -145,7 +172,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: "view",
-        _dd: { document_version: showPage.documentVersion },
+        _dd: buildDdData(showPage),
         view: buildPageEventData(showPage),
       });
 
@@ -158,13 +185,14 @@ export function startPageCollection(
       currentPage &&
       !currentPage.updateIntervalId
     ) {
+      addPageState(currentPage, 'active', event.time);
       const time_spent = event.time - currentPage.startTime;
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1;
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: "view",
-        _dd: { document_version: currentPage.documentVersion },
+        _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { time_spent }),
       });
 
@@ -175,6 +203,7 @@ export function startPageCollection(
     // hide：暂停更新，但保留页面状态
     if (event.lifecycle === "hide" && currentPage) {
       stopPageUpdate(currentPage);
+      addPageState(currentPage, 'hidden', event.time);
 
       const time_spent = event.time - currentPage.startTime;
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1;
@@ -182,7 +211,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: "view",
-        _dd: { document_version: currentPage.documentVersion },
+        _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { time_spent, is_active: false }),
       });
     }
@@ -190,6 +219,7 @@ export function startPageCollection(
     // unload：停止更新并发送最终事件
     if (event.lifecycle === "unload" && currentPage) {
       stopPageUpdate(currentPage);
+      addPageState(currentPage, 'terminated', event.time);
 
       const time_spent = event.time - currentPage.startTime;
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1;
@@ -197,7 +227,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: event.time,
         type: "view",
-        _dd: { document_version: currentPage.documentVersion },
+        _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { time_spent, is_active: false }),
       });
 
@@ -223,7 +253,7 @@ export function startPageCollection(
       const loadingType = pageContextManager.getLoadingType();
 
       currentPage = {
-        id: `${time}-${Math.random().toString(16).slice(2)}`,
+        id: generateUUID(),
         name,
         startTime: time,
         referrer,
@@ -235,7 +265,7 @@ export function startPageCollection(
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: time,
         type: "view",
-        _dd: { document_version: manualPage.documentVersion },
+        _dd: buildDdData(manualPage),
         view: buildPageEventData(manualPage),
       });
 

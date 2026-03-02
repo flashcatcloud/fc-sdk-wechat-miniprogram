@@ -1,12 +1,16 @@
+import type { PageStateServerEntry } from '../../rawRumEvent.types'
+import { generateUUID } from '@flashcatcloud/miniprogram-core'
+
 export interface PageHistoryEntry {
   id: string
   name: string
   startTime: number
-  loadTime?: number          // 页面 onLoad 时间，用于计算 loading_time
-  referrer?: string          // 来源页面路由
-  loadingType?: 'initial_load' | 'route_change'  // 加载类型
+  loadTime?: number
+  referrer?: string
+  loadingType?: 'initial_load' | 'route_change'
   documentVersion: number
-  updateIntervalId?: ReturnType<typeof setInterval>  // 用于存储定时器 ID，便于清理
+  updateIntervalId?: ReturnType<typeof setInterval>
+  pageStates?: PageStateServerEntry[]
 }
 
 export function createPageHistory() {
@@ -14,7 +18,7 @@ export function createPageHistory() {
 
   function startPage(name: string, time: number) {
     current = {
-      id: `${time}-${Math.random().toString(16).slice(2)}`,
+      id: generateUUID(),
       name,
       startTime: time,
       documentVersion: 0,

@@ -4,14 +4,14 @@ import { LifeCycleEventType } from '../lifeCycle'
 export interface EventCounts {
   actionCount: number
   errorCount: number
-  requestCount: number
+  resourceCount: number
 }
 
 export class EventCountsTracker {
   private counts: EventCounts = {
     actionCount: 0,
     errorCount: 0,
-    requestCount: 0,
+    resourceCount: 0,
   }
 
   private subscription: { unsubscribe: () => void }
@@ -28,28 +28,22 @@ export class EventCountsTracker {
             this.counts.errorCount += 1
             break
           case 'request':
-            this.counts.requestCount += 1
+            this.counts.resourceCount += 1
             break
         }
       }
     )
   }
 
-  /**
-   * 获取当前计数的快照（不重置）
-   */
   getCounts(): EventCounts {
     return { ...this.counts }
   }
 
-  /**
-   * 重置计数（页面切换时调用）
-   */
   reset() {
     this.counts = {
       actionCount: 0,
       errorCount: 0,
-      requestCount: 0,
+      resourceCount: 0,
     }
   }
 

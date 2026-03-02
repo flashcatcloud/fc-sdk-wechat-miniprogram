@@ -5,13 +5,26 @@ export interface RawRumEventBase {
   type: RumEventType
 }
 
+export interface PageStateServerEntry {
+  state: string
+  start: number
+}
+
 export interface RawRumViewEvent extends RawRumEventBase {
   type: 'view'
   _dd: {
     document_version: number
+    format_version: number
+    page_states?: PageStateServerEntry[]
+    configuration: {
+      session_sample_rate: number
+      session_replay_sample_rate: number
+      start_session_replay_recording_manually: boolean
+    }
   }
   view: {
     id: string
+    url: string
     name: string
     referrer?: string
     loading_type?: 'initial_load' | 'route_change'
@@ -20,7 +33,7 @@ export interface RawRumViewEvent extends RawRumEventBase {
     is_active?: boolean
     action?: { count: number }
     error?: { count: number }
-    request?: { count: number }
+    resource?: { count: number }
   }
 }
 
