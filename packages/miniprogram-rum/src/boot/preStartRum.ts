@@ -5,7 +5,7 @@ import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 
 export function createPreStartStrategy(
   adapter: PlatformAdapter,
-  startRum: (configuration: RumConfiguration, adapter: PlatformAdapter) => Strategy
+  startRum: (configuration: RumConfiguration, adapter: PlatformAdapter) => Strategy,
 ): Strategy {
   const buffer: Array<(strategy: Strategy) => void> = []
   let initConfiguration: RumInitConfiguration | undefined

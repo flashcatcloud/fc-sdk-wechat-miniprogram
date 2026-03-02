@@ -17,22 +17,19 @@ export class EventCountsTracker {
   private subscription: { unsubscribe: () => void }
 
   constructor(lifeCycle: LifeCycle) {
-    this.subscription = lifeCycle.subscribe(
-      LifeCycleEventType.RAW_RUM_EVENT_COLLECTED,
-      (event) => {
-        switch (event.type) {
-          case 'action':
-            this.counts.actionCount += 1
-            break
-          case 'error':
-            this.counts.errorCount += 1
-            break
-          case 'request':
-            this.counts.resourceCount += 1
-            break
-        }
+    this.subscription = lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (event) => {
+      switch (event.type) {
+        case 'action':
+          this.counts.actionCount += 1
+          break
+        case 'error':
+          this.counts.errorCount += 1
+          break
+        case 'request':
+          this.counts.resourceCount += 1
+          break
       }
-    )
+    })
   }
 
   getCounts(): EventCounts {

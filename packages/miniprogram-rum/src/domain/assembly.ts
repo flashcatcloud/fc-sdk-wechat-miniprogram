@@ -91,20 +91,16 @@ export function startRumAssembly({
   function getOrCreateRateLimiter(eventType: RumEventType): EventRateLimiter {
     let limiter = eventRateLimiters.get(eventType)
     if (!limiter) {
-      limiter = createEventRateLimiter(
-        eventType,
-        configuration.eventRateLimiterThreshold,
-        (error) => {
-          lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-            date: Date.now(),
-            type: 'error',
-            error: {
-              message: error.message,
-              source: 'custom',
-            },
-          })
-        }
-      )
+      limiter = createEventRateLimiter(eventType, configuration.eventRateLimiterThreshold, (error) => {
+        lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+          date: Date.now(),
+          type: 'error',
+          error: {
+            message: error.message,
+            source: 'custom',
+          },
+        })
+      })
       eventRateLimiters.set(eventType, limiter)
     }
     return limiter

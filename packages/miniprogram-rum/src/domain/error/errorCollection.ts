@@ -13,7 +13,7 @@ export function startErrorCollection(lifeCycle: LifeCycle) {
   function addError(
     error: string | ErrorWithFingerprint,
     source: 'app' | 'promise' | 'custom',
-    stackOrOptions?: string | AddErrorOptions
+    stackOrOptions?: string | AddErrorOptions,
   ) {
     let message: string
     let stack: string | undefined
@@ -26,7 +26,8 @@ export function startErrorCollection(lifeCycle: LifeCycle) {
     } else {
       message = error.message
       stack = error.stack
-      fingerprint = error.dd_fingerprint ?? (typeof stackOrOptions === 'object' ? stackOrOptions.fingerprint : undefined)
+      fingerprint =
+        error.dd_fingerprint ?? (typeof stackOrOptions === 'object' ? stackOrOptions.fingerprint : undefined)
     }
 
     lifeCycle.notify(LifeCycleEventType.ERROR_COLLECTED, { message, stack, source })

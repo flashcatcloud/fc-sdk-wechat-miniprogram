@@ -1,58 +1,47 @@
-import { generateUUID } from "../../tools/utils/stringUtils";
-import { now } from "../../tools/utils/timeUtils";
-import { SDK_VERSION } from "./sdkVersion";
+import { generateUUID } from '../../tools/utils/stringUtils'
+import { now } from '../../tools/utils/timeUtils'
+import { SDK_VERSION } from './sdkVersion'
 
-export type TrackType = "rum";
+export type TrackType = 'rum'
 
 /**
  * proxy 为函数类型时的签名
  * path: /api/v2/rum
  * parameters: ddsource=miniapp&dd-api-key=xxx&...
  */
-export type ProxyFn = (options: {
-  path: string;
-  parameters: string;
-}) => string;
+export type ProxyFn = (options: { path: string; parameters: string }) => string
 
 export interface EndpointBuilder {
-  trackType: TrackType;
-  build: (payload: { encoding?: string }) => string;
-  urlPrefix: string;
-  tags: string[];
+  trackType: TrackType
+  build: (payload: { encoding?: string }) => string
+  urlPrefix: string
+  tags: string[]
 }
 
 export function createEndpointBuilder(
   initConfiguration: {
-    clientToken: string;
-    proxy?: string | ProxyFn;
-    site?: string;
+    clientToken: string
+    proxy?: string | ProxyFn
+    site?: string
   },
   trackType: TrackType,
-  configurationTags: string[]
+  configurationTags: string[],
 ): EndpointBuilder {
-  const buildUrlWithParameters = createEndpointUrlWithParametersBuilder(
-    initConfiguration,
-    trackType
-  );
+  const buildUrlWithParameters = createEndpointUrlWithParametersBuilder(initConfiguration, trackType)
 
   return {
     trackType,
     build: (payload) => {
-      const parameters = buildEndpointParameters(
-        initConfiguration,
-        trackType,
-        configurationTags,
-        payload
-      );
-      return buildUrlWithParameters(parameters);
+      const parameters = buildEndpointParameters(initConfiguration, trackType, configurationTags, payload)
+      return buildUrlWithParameters(parameters)
     },
-    urlPrefix: buildUrlWithParameters(""),
+    urlPrefix: buildUrlWithParameters(''),
     tags: configurationTags,
-  };
+  }
 }
 
 function normalizeUrl(url: string): string {
-  return url.replace(/\/+$/, "");
+  return url.replace(/\/+$/, '')
 }
 
 /**
@@ -62,28 +51,28 @@ function normalizeUrl(url: string): string {
  */
 function createEndpointUrlWithParametersBuilder(
   initConfiguration: { proxy?: string | ProxyFn; site?: string },
-  trackType: TrackType
+  trackType: TrackType,
 ): (parameters: string) => string {
-  const path = `/api/v2/${trackType}`;
-  const proxy = initConfiguration.proxy;
+  const path = `/api/v2/${trackType}`
+  const proxy = initConfiguration.proxy
 
-  if (typeof proxy === "string") {
-    const normalizedProxyUrl = normalizeUrl(proxy);
+  if (typeof proxy === 'string') {
+    const normalizedProxyUrl = normalizeUrl(proxy)
     return (parameters) => {
-      const forward = parameters ? `${path}?${parameters}` : path;
-      return `${normalizedProxyUrl}?ddforward=${encodeURIComponent(forward)}`;
-    };
+      const forward = parameters ? `${path}?${parameters}` : path
+      return `${normalizedProxyUrl}?ddforward=${encodeURIComponent(forward)}`
+    }
   }
 
-  if (typeof proxy === "function") {
-    return (parameters) => proxy({ path, parameters });
+  if (typeof proxy === 'function') {
+    return (parameters) => proxy({ path, parameters })
   }
 
-  const site = initConfiguration.site || "browser.flashcat.cloud";
+  const site = initConfiguration.site || 'browser.flashcat.cloud'
   return (parameters) => {
-    const base = `https://${site}${path}`;
-    return parameters ? `${base}?${parameters}` : base;
-  };
+    const base = `https://${site}${path}`
+    return parameters ? `${base}?${parameters}` : base
+  }
 }
 
 /**
@@ -94,29 +83,26 @@ function buildEndpointParameters(
   { clientToken }: { clientToken: string },
   trackType: TrackType,
   configurationTags: string[],
-  { encoding }: { encoding?: string }
+  { encoding }: { encoding?: string },
 ): string {
-  const tags = [
-    `sdk_version:${SDK_VERSION}`,
-    `api:miniapp`,
-  ].concat(configurationTags);
+  const tags = [`sdk_version:${SDK_VERSION}`, `api:miniapp`].concat(configurationTags)
 
   const parameters = [
-    "ddsource=miniapp",
-    `ddtags=${encodeURIComponent(tags.join(","))}`,
+    'ddsource=miniapp',
+    `ddtags=${encodeURIComponent(tags.join(','))}`,
     `dd-api-key=${clientToken}`,
     `dd-evp-origin-version=${encodeURIComponent(SDK_VERSION)}`,
-    "dd-evp-origin=miniapp",
+    'dd-evp-origin=miniapp',
     `dd-request-id=${generateUUID()}`,
-  ];
+  ]
 
   if (encoding) {
-    parameters.push(`dd-evp-encoding=${encoding}`);
+    parameters.push(`dd-evp-encoding=${encoding}`)
   }
 
-  if (trackType === "rum") {
-    parameters.push(`batch_time=${now()}`);
+  if (trackType === 'rum') {
+    parameters.push(`batch_time=${now()}`)
   }
 
-  return parameters.join("&");
+  return parameters.join('&')
 }

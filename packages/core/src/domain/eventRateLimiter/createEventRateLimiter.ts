@@ -18,7 +18,7 @@ export interface EventRateLimiter {
 export function createEventRateLimiter(
   eventType: string,
   limit: number,
-  onLimitReached: (error: RateLimitError) => void
+  onLimitReached: (error: RateLimitError) => void,
 ): EventRateLimiter {
   let eventCount = 0
   let allowNextEvent = false

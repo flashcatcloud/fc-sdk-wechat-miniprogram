@@ -23,19 +23,19 @@ export interface RumInitConfiguration extends InitConfiguration {
      * @default false
      */
     enabled?: boolean
-    
+
     /**
      * 采样率 (0-1)
      * @default 1.0 (100% 采样)
      */
     sampleRate?: number
-    
+
     /**
      * 根 trace context (可选)
      * 如果提供，所有请求将作为此 trace 的子 span
      */
     rootTraceContext?: TraceContext
-    
+
     /**
      * 自定义 trace header 名称 (可选)
      * @default 'traceparent'
@@ -60,7 +60,7 @@ export interface RumConfiguration extends Configuration {
 }
 
 export function validateAndBuildRumConfiguration(
-  initConfiguration: RumInitConfiguration
+  initConfiguration: RumInitConfiguration,
 ): RumConfiguration | undefined {
   const base = validateAndBuildConfiguration(initConfiguration)
   if (!base) {

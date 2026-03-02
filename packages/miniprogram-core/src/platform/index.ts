@@ -1,9 +1,9 @@
-import type { PlatformAdapter } from "./types";
-import { wechatAdapter } from "./wechat/index";
+import type { PlatformAdapter } from './types'
+import { wechatAdapter } from './wechat/index'
 
 export function getDefaultAdapter(): PlatformAdapter {
-  return wechatAdapter;
+  return wechatAdapter
 }
 
-export type { PlatformAdapter } from "./types";
-export type { RequestOptions, RequestTask, StorageOptions } from "./types";
+export type { PlatformAdapter } from './types'
+export type { RequestOptions, RequestTask, StorageOptions } from './types'
