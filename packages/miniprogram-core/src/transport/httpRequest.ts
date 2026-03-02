@@ -35,6 +35,9 @@ export function createHttpRequest(
       url,
       method: "POST",
       data: payload.data,
+      header: {
+        "Content-Type": "text/plain;charset=UTF-8",
+      },
       success: (res: any) => {
         if (debug) {
           console.log("[FlashCat RUM] ✅ 数据上报成功", {
