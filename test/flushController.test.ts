@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createFlushController } from '../packages/core/src/transport/flushController'
 
 test('flushController notifies on timer', async () => {
-  const controller = createFlushController(50, 1000)
+  const controller = createFlushController({ flushInterval: 50, batchBytesLimit: 1000 })
   const events: string[] = []
 
   controller.flushObservable.subscribe((event) => {
@@ -15,7 +15,7 @@ test('flushController notifies on timer', async () => {
 })
 
 test('flushController notifies on size limit', () => {
-  const controller = createFlushController(10000, 100)
+  const controller = createFlushController({ flushInterval: 10000, batchBytesLimit: 100 })
   const events: string[] = []
 
   controller.flushObservable.subscribe((event) => {
@@ -27,7 +27,7 @@ test('flushController notifies on size limit', () => {
 })
 
 test('flushController accumulates bytes', () => {
-  const controller = createFlushController(10000, 100)
+  const controller = createFlushController({ flushInterval: 10000, batchBytesLimit: 100 })
   const events: string[] = []
 
   controller.flushObservable.subscribe((event) => {
@@ -45,7 +45,7 @@ test('flushController accumulates bytes', () => {
 })
 
 test('flushController notifyAfterAddMessage resets timer', async () => {
-  const controller = createFlushController(50, 1000)
+  const controller = createFlushController({ flushInterval: 50, batchBytesLimit: 1000 })
   const events: string[] = []
 
   controller.flushObservable.subscribe((event) => {
@@ -67,7 +67,7 @@ test('flushController notifyAfterAddMessage resets timer', async () => {
 })
 
 test('flushController notifyAfterAddMessage adds delta bytes', () => {
-  const controller = createFlushController(10000, 100)
+  const controller = createFlushController({ flushInterval: 10000, batchBytesLimit: 100 })
   const events: string[] = []
 
   controller.flushObservable.subscribe((event) => {
@@ -79,5 +79,21 @@ test('flushController notifyAfterAddMessage adds delta bytes', () => {
 
   // Total is now 110, should trigger size flush on next add
   controller.notifyBeforeAddMessage(1)
-  // Already over limit from delta
+  assert.ok(events.includes('size'))
+})
+
+test('flushController notifies on messages limit', () => {
+  const controller = createFlushController({ flushInterval: 10000, batchBytesLimit: 1000, messagesLimit: 3 })
+  const events: string[] = []
+
+  controller.flushObservable.subscribe((event) => {
+    events.push(event.reason)
+  })
+
+  controller.notifyAfterAddMessage()
+  controller.notifyAfterAddMessage()
+  assert.equal(events.length, 0)
+
+  controller.notifyAfterAddMessage()
+  assert.ok(events.includes('messages_limit'))
 })

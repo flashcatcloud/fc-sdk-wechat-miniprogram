@@ -24,7 +24,7 @@ export function initPageObservable() {
   function wrapHook(
     options: Record<string, any>,
     hookName: string,
-    lifecycle: PageLifecycle
+    lifecycle: PageLifecycle,
   ) {
     const original = options[hookName];
     options[hookName] = function (...args: any[]) {

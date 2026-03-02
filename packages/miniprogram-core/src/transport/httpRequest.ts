@@ -3,6 +3,11 @@ import type {
   HttpRequest,
   Payload,
 } from "@flashcatcloud/miniprogram-core";
+import {
+  newRetryState,
+  sendWithRetryStrategy,
+  persistPayload,
+} from "@flashcatcloud/miniprogram-core";
 import type { PlatformAdapter } from "../platform/types";
 
 export function createHttpRequest(
@@ -10,16 +15,19 @@ export function createHttpRequest(
   endpointBuilder: EndpointBuilder,
   debug?: boolean
 ): HttpRequest {
-  function sendPayload(payload: Payload) {
+  const retryState = newRetryState();
+
+  function requestStrategy(
+    payload: Payload,
+    onResponse: (r: { status: number }) => void
+  ) {
     const url = endpointBuilder.build({ encoding: payload.encoding });
 
     if (debug) {
       console.log("[FlashCat RUM] 📤 发送数据", {
         url,
         数据大小: `${payload.bytesCount} bytes`,
-        内容预览:
-          payload.data?.substring(0, 200) +
-          (payload.data && payload.data.length > 200 ? "..." : ""),
+        retryCount: payload.retry?.count,
       });
     }
 
@@ -34,18 +42,41 @@ export function createHttpRequest(
             url,
           });
         }
+        onResponse({ status: res.statusCode });
       },
       fail: (err: any) => {
-        console.error("[FlashCat RUM] ❌ 数据上报失败", {
-          url,
-          error: err.errMsg || err,
-        });
+        if (debug) {
+          console.error("[FlashCat RUM] ❌ 数据上报失败", {
+            url,
+            error: err.errMsg || err,
+          });
+        }
+        onResponse({ status: 0 }); // Use 0 for network errors
       },
     });
   }
 
+  function sendPayload(payload: Payload) {
+    sendWithRetryStrategy(
+      payload,
+      retryState,
+      requestStrategy,
+      (exhaustedPayload) => {
+        if (debug) {
+          console.warn("[FlashCat RUM] ⚠️ 重试次数超限，持久化到本地存储");
+        }
+        persistPayload(adapter, exhaustedPayload);
+      }
+    );
+  }
+
   return {
     send: sendPayload,
-    sendOnExit: sendPayload,
+    sendOnExit: (payload) => {
+      // Direct send on exit, no retry queue
+      requestStrategy(payload, () => {
+        /* ignore */
+      });
+    },
   };
 }

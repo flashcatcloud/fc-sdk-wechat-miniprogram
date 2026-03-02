@@ -45,7 +45,7 @@ export function startRum(
 
   const { pageObservable, actionObservable } = initPageObservable();
   const { observable: requestObservable } = initRequestObservable(adapter, configuration.tracing);
-  const { errorObservable, unhandledRejectionObservable } =
+  const { appObservable, errorObservable, unhandledRejectionObservable } =
     initAppObservable(adapter);
 
   const pageCollection = startPageCollection(lifeCycle, pageObservable);
@@ -90,7 +90,7 @@ export function startRum(
     getCurrentPage: pageCollection.getCurrentPage,
   });
 
-  const rumBatch = startRumBatch(configuration, lifeCycle, adapter);
+  const rumBatch = startRumBatch(configuration, lifeCycle, adapter, appObservable);
 
   return {
     lifeCycle,

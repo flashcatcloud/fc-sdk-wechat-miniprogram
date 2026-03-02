@@ -6,6 +6,10 @@ export interface Payload {
   data: string;
   bytesCount: number;
   encoding?: string;
+  retry?: {
+    count: number;
+    lastFailureStatus: number;
+  };
 }
 
 export interface HttpRequest {

@@ -39,6 +39,8 @@ export type {
 export { createFlushController } from "./transport/flushController";
 export type { Batch, Payload, HttpRequest } from "./transport/batch";
 export { createBatch } from "./transport/batch";
+export * from "./transport/sendWithRetryStrategy";
+export * from "./transport/payloadPersistence";
 
 export type { TraceContext } from "./domain/tracing/traceContext";
 export {
