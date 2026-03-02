@@ -50,6 +50,15 @@ export interface StorageOptions {
   data?: unknown;
 }
 
+export interface NetworkTypeResult {
+  networkType: string;
+}
+
+export interface NetworkStatusChangeResult {
+  isConnected: boolean;
+  networkType: string;
+}
+
 export interface PlatformAdapter {
   request: (options: RequestOptions) => RequestTask;
   setStorageSync: (key: string, data: unknown) => void;
@@ -61,6 +70,8 @@ export interface PlatformAdapter {
     version?: string;
     platform?: string;
   };
+  getNetworkType: (options: { success: (res: NetworkTypeResult) => void }) => void;
+  onNetworkStatusChange: (callback: (res: NetworkStatusChangeResult) => void) => void;
   onAppShow: (callback: () => void) => void;
   onAppHide: (callback: () => void) => void;
   onError: (callback: (error: string) => void) => void;

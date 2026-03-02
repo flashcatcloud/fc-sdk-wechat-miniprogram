@@ -88,6 +88,7 @@ export function startRum(
     globalContext,
     userContext,
     getCurrentPage: pageCollection.getCurrentPage,
+    adapter,
   });
 
   const rumBatch = startRumBatch(configuration, lifeCycle, adapter, appObservable);

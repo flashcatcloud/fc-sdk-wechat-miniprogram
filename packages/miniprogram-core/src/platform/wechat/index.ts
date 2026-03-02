@@ -1,4 +1,4 @@
-import type { PlatformAdapter, RequestOptions, RequestTask } from "../types";
+import type { NetworkStatusChangeResult, NetworkTypeResult, PlatformAdapter, RequestOptions, RequestTask } from "../types";
 
 declare const wx: {
   request: (options: RequestOptions) => RequestTask;
@@ -11,6 +11,8 @@ declare const wx: {
     version?: string;
     platform?: string;
   };
+  getNetworkType: (options: { success: (res: NetworkTypeResult) => void }) => void;
+  onNetworkStatusChange: (callback: (res: NetworkStatusChangeResult) => void) => void;
   onAppShow: (callback: () => void) => void;
   onAppHide: (callback: () => void) => void;
   onError: (callback: (error: string) => void) => void;
@@ -23,6 +25,8 @@ export const wechatAdapter: PlatformAdapter = {
   getStorageSync: (key) => wx.getStorageSync(key),
   removeStorageSync: (key) => wx.removeStorageSync(key),
   getSystemInfoSync: () => wx.getSystemInfoSync(),
+  getNetworkType: (options) => wx.getNetworkType(options),
+  onNetworkStatusChange: (callback) => wx.onNetworkStatusChange(callback),
   onAppShow: (callback) => wx.onAppShow(callback),
   onAppHide: (callback) => wx.onAppHide(callback),
   onError: (callback) => wx.onError(callback),

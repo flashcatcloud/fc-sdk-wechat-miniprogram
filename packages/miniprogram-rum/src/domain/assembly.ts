@@ -1,3 +1,4 @@
+import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 import type { ContextManager, SessionManager } from '@flashcatcloud/miniprogram-core'
 import type { EventRateLimiter } from '@flashcatcloud/miniprogram-core'
 import { createEventRateLimiter } from '@flashcatcloud/miniprogram-core'
@@ -8,35 +9,16 @@ import type { RumConfiguration } from './configuration/configuration'
 import type { RumEvent, Connectivity } from '../rumEvent.types'
 import type { PageHistoryEntry } from './contexts/pageHistory'
 
-function getWxConnectivity(): Connectivity {
-  const connectivity: Connectivity = {
+function startConnectivityMonitor(adapter: PlatformAdapter): { getConnectivity: () => Connectivity } {
+  let currentConnectivity: Connectivity = {
     status: 'connected',
     interfaces: undefined,
     effective_type: undefined,
   }
 
   try {
-    const systemInfo = wx.getSystemInfoSync()
-    if (systemInfo) {
-      // @ts-ignore - platform field exists at runtime
-      const platform = systemInfo.platform
-      if (platform) {
-        connectivity.interfaces = [platform === 'ios' || platform === 'android' ? 'cellular' : 'other']
-      }
-    }
-  } catch (_e) {
-    // ignore
-  }
-
-  return connectivity
-}
-
-function startConnectivityMonitor(): { getConnectivity: () => Connectivity } {
-  let currentConnectivity = getWxConnectivity()
-
-  try {
-    wx.getNetworkType({
-      success(res: { networkType: string }) {
+    adapter.getNetworkType({
+      success(res) {
         currentConnectivity = mapNetworkType(res.networkType)
       },
     })
@@ -45,7 +27,7 @@ function startConnectivityMonitor(): { getConnectivity: () => Connectivity } {
   }
 
   try {
-    wx.onNetworkStatusChange((res: { isConnected: boolean; networkType: string }) => {
+    adapter.onNetworkStatusChange((res) => {
       currentConnectivity = {
         status: res.isConnected ? 'connected' : 'not_connected',
         ...mapNetworkTypeFields(res.networkType),
@@ -93,6 +75,7 @@ export function startRumAssembly({
   globalContext,
   userContext,
   getCurrentPage,
+  adapter,
 }: {
   lifeCycle: LifeCycle
   configuration: RumConfiguration
@@ -100,9 +83,10 @@ export function startRumAssembly({
   globalContext: ContextManager
   userContext: ContextManager
   getCurrentPage: () => PageHistoryEntry | undefined
+  adapter: PlatformAdapter
 }) {
   const eventRateLimiters = new Map<RumEventType, EventRateLimiter>()
-  const connectivityMonitor = startConnectivityMonitor()
+  const connectivityMonitor = startConnectivityMonitor(adapter)
 
   function getOrCreateRateLimiter(eventType: RumEventType): EventRateLimiter {
     let limiter = eventRateLimiters.get(eventType)
