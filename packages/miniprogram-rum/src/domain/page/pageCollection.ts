@@ -67,12 +67,11 @@ export function startPageCollection(
     const intervalId = setInterval(() => {
       if (!page) return
 
-      const now = Date.now()
-      const time_spent = now - page.startTime
+      const time_spent = Date.now() - page.startTime
       page.documentVersion = (page.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: now,
+        date: page.startTime,
         type: 'view',
         _dd: buildDdData(page),
         view: buildPageEventData(page, { time_spent }),
@@ -125,7 +124,7 @@ export function startPageCollection(
       const loadPage = currentPage
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: event.time,
+        date: loadPage.startTime,
         type: 'view',
         _dd: buildDdData(loadPage),
         view: buildPageEventData(loadPage),
@@ -141,7 +140,7 @@ export function startPageCollection(
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: event.time,
+        date: currentPage.startTime,
         type: 'view',
         _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { loading_time }),
@@ -170,7 +169,7 @@ export function startPageCollection(
       const showPage = currentPage
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: event.time,
+        date: showPage.startTime,
         type: 'view',
         _dd: buildDdData(showPage),
         view: buildPageEventData(showPage),
@@ -186,7 +185,7 @@ export function startPageCollection(
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: event.time,
+        date: currentPage.startTime,
         type: 'view',
         _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { time_spent }),
@@ -205,7 +204,7 @@ export function startPageCollection(
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: event.time,
+        date: currentPage.startTime,
         type: 'view',
         _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { time_spent, is_active: false }),
@@ -221,7 +220,7 @@ export function startPageCollection(
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: event.time,
+        date: currentPage.startTime,
         type: 'view',
         _dd: buildDdData(currentPage),
         view: buildPageEventData(currentPage, { time_spent, is_active: false }),
@@ -259,7 +258,7 @@ export function startPageCollection(
 
       const manualPage = currentPage
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: time,
+        date: manualPage.startTime,
         type: 'view',
         _dd: buildDdData(manualPage),
         view: buildPageEventData(manualPage),
