@@ -1,3 +1,4 @@
+import { generateUUID } from '../../tools/utils/stringUtils'
 import { now } from '../../tools/utils/timeUtils'
 
 export interface SessionState {
@@ -28,7 +29,7 @@ export function startSessionManager(store: SessionStore): SessionManager {
   function createSession(): SessionState {
     const time = now()
     return {
-      id: `${time}-${Math.random().toString(16).slice(2)}`,
+      id: generateUUID(),
       created: time,
       expireAt: time + SESSION_TIMEOUT,
     }
