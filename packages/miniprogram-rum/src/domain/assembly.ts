@@ -127,9 +127,9 @@ export function startRumAssembly({
       },
       view: {
         ...rawView,
-        id: page?.id || 'unknown',
-        url: pageName,
-        name: pageName,
+        id: rawView?.id || page?.id || 'unknown',
+        url: rawView?.url || pageName,
+        name: rawView?.name || pageName,
       },
       connectivity: connectivityMonitor.getConnectivity(),
       user: userContext.getContext(),
