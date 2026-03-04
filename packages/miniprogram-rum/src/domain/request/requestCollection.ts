@@ -1,4 +1,5 @@
 import type { Observable } from '@flashcatcloud/miniprogram-core'
+import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { RequestCompleteEvent } from '@flashcatcloud/miniprogram-platform'
 import type { LifeCycle } from '../lifeCycle'
 import { LifeCycleEventType } from '../lifeCycle'
@@ -10,6 +11,7 @@ export function startRequestCollection(lifeCycle: LifeCycle, requestObservable: 
       date: event.startTime + event.duration,
       type: 'request',
       request: {
+        id: generateUUID(),
         url: event.url,
         method: event.method,
         status_code: event.statusCode,

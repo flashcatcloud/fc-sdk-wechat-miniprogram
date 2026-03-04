@@ -40,6 +40,7 @@ export interface RawRumViewEvent extends RawRumEventBase {
 export interface RawRumRequestEvent extends RawRumEventBase {
   type: 'request'
   request: {
+    id: string
     url: string
     method: string
     status_code?: number
@@ -60,9 +61,24 @@ export interface RawRumErrorEvent extends RawRumEventBase {
 
 export interface RawRumActionEvent extends RawRumEventBase {
   type: 'action'
+  _dd?: {
+    action?: {
+      position?: {
+        x: number
+        y: number
+      }
+    }
+  }
   action: {
-    name: string
+    id: string
     type: string
+    target: {
+      name: string
+    }
+    loading_time?: number
+    error?: { count: number }
+    long_task?: { count: number }
+    resource?: { count: number }
   }
 }
 

@@ -39,8 +39,12 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   }
 
   const { pageObservable, actionObservable } = initPageObservable()
-  const { observable: requestObservable } = initRequestObservable(adapter, configuration.tracing)
+  const { observable: requestObservable, requestStartObservable } = initRequestObservable(adapter, configuration.tracing)
   const { appObservable, errorObservable, unhandledRejectionObservable } = initAppObservable(adapter)
+
+  requestStartObservable.subscribe((event) => {
+    lifeCycle.notify(LifeCycleEventType.REQUEST_STARTED, event)
+  })
 
   const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration)
   const requestCollection = configuration.trackRequests

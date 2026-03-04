@@ -1,7 +1,7 @@
 import { AbstractLifeCycle as BaseLifeCycle } from '@flashcatcloud/miniprogram-core'
 import type { RawRumEvent } from '../rawRumEvent.types'
 import type { RumEvent } from '../rumEvent.types'
-import type { RequestCompleteEvent } from '@flashcatcloud/miniprogram-platform'
+import type { RequestCompleteEvent, RequestStartEvent } from '@flashcatcloud/miniprogram-platform'
 import type { PageEvent, UserActionEvent } from '@flashcatcloud/miniprogram-platform'
 
 export const enum LifeCycleEventType {
@@ -13,11 +13,13 @@ export const enum LifeCycleEventType {
   CUSTOM_EVENT_COLLECTED,
   RAW_RUM_EVENT_COLLECTED,
   RUM_EVENT_COLLECTED,
+  REQUEST_STARTED,
 }
 
 export type LifeCycleEventMap = {
   [LifeCycleEventType.PAGE_EVENT]: PageEvent
   [LifeCycleEventType.REQUEST_COMPLETED]: RequestCompleteEvent
+  [LifeCycleEventType.REQUEST_STARTED]: RequestStartEvent
   [LifeCycleEventType.ERROR_COLLECTED]: {
     message: string
     stack?: string

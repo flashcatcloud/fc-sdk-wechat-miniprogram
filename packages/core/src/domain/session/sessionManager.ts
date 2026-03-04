@@ -1,6 +1,8 @@
 import { generateUUID } from '../../tools/utils/stringUtils'
 import { now } from '../../tools/utils/timeUtils'
 
+const SESSION_TIMEOUT = 4 * 60 * 1000 // 4 hours
+
 export interface SessionState {
   id: string
   created: number
@@ -18,8 +20,6 @@ export interface SessionManager {
   renew: () => SessionState
   expire: () => void
 }
-
-const SESSION_TIMEOUT = 30 * 60 * 1000
 
 export function startSessionManager(store: SessionStore): SessionManager {
   function isExpired(state: SessionState) {

@@ -12,6 +12,9 @@ export interface UserActionEvent {
   route: string
   type: string
   time: number
+  targetName?: string
+  x?: number
+  y?: number
 }
 
 declare let Page: (options: Record<string, any>) => void
@@ -40,10 +43,14 @@ export function initPageObservable() {
         const event = args[0]
         if (event && typeof event.type === 'string') {
           const route = this?.route || ''
+          const dataset = (event.currentTarget?.dataset || {}) as Record<string, string>
           actionObservable.notify({
             route,
             type: event.type,
             time: Date.now(),
+            targetName: dataset.name || dataset.content || dataset.type,
+            x: event.detail?.x,
+            y: event.detail?.y,
           })
         }
         return value.apply(this, args)

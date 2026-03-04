@@ -9,10 +9,6 @@ export interface Connectivity {
 }
 
 export type RumEvent = RawRumEvent & {
-  _dd?: {
-    document_version: number
-    format_version?: number
-  }
   application: {
     id: string
   }

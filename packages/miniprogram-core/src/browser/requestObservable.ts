@@ -63,6 +63,7 @@ declare let wx: {
 
 export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
   const observable = new Observable<RequestCompleteEvent>()
+  const requestStartObservable = new Observable<RequestStartEvent>()
   const originalRequest = adapter.request
   const originalWxRequest = wx.request
   const originalWxUploadFile = wx.uploadFile
@@ -109,6 +110,8 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     const method = (options.method || 'GET').toUpperCase()
     const url = options.url
 
+    requestStartObservable.notify({ url, method, startTime })
+
     // 注入 trace header
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
@@ -149,6 +152,8 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
   function wrapUploadFile(uploadFile: (options: UploadFileOptions) => UploadTask, options: UploadFileOptions) {
     const startTime = Date.now()
     const url = options.url
+
+    requestStartObservable.notify({ url, method: 'POST', startTime })
 
     // 注入 trace header
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
@@ -194,6 +199,8 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     const startTime = Date.now()
     const url = options.url
 
+    requestStartObservable.notify({ url, method: 'GET', startTime })
+
     // 注入 trace header
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
@@ -238,6 +245,7 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
 
   return {
     observable,
+    requestStartObservable,
     stop: () => {
       adapter.request = originalRequest
       wx.request = originalWxRequest
