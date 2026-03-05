@@ -1,6 +1,6 @@
 import type { Observable } from '@flashcatcloud/miniprogram-core'
 import type { PageEvent } from '@flashcatcloud/miniprogram-platform'
-import { generateUUID } from '@flashcatcloud/miniprogram-core'
+import { generateUUID, toServerDuration } from '@flashcatcloud/miniprogram-core'
 import { LifeCycleEventType } from '../lifeCycle'
 import type { LifeCycle } from '../lifeCycle'
 import type { PageHistoryEntry } from '../contexts/pageHistory'
@@ -67,7 +67,7 @@ export function startPageCollection(
     const intervalId = setInterval(() => {
       if (!page) return
 
-      const time_spent = Date.now() - page.startTime
+      const time_spent = toServerDuration(Date.now() - page.startTime)
       page.documentVersion = (page.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -95,7 +95,7 @@ export function startPageCollection(
     }
     page.pageStates.push({
       state,
-      start: time - page.startTime,
+      start: toServerDuration(time - page.startTime),
     })
   }
 
@@ -136,7 +136,7 @@ export function startPageCollection(
 
     // ready：计算并上报 loading_time
     if (event.lifecycle === 'ready' && currentPage && currentPage.loadTime) {
-      const loading_time = event.time - currentPage.loadTime
+      const loading_time = toServerDuration(event.time - currentPage.loadTime)
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -181,7 +181,7 @@ export function startPageCollection(
     // 从后台恢复（hide 后的 show）：恢复定时器
     if (event.lifecycle === 'show' && currentPage && !currentPage.updateIntervalId) {
       addPageState(currentPage, 'active', event.time)
-      const time_spent = event.time - currentPage.startTime
+      const time_spent = toServerDuration(event.time - currentPage.startTime)
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -200,7 +200,7 @@ export function startPageCollection(
       stopPageUpdate(currentPage)
       addPageState(currentPage, 'hidden', event.time)
 
-      const time_spent = event.time - currentPage.startTime
+      const time_spent = toServerDuration(event.time - currentPage.startTime)
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
@@ -216,7 +216,7 @@ export function startPageCollection(
       stopPageUpdate(currentPage)
       addPageState(currentPage, 'terminated', event.time)
 
-      const time_spent = event.time - currentPage.startTime
+      const time_spent = toServerDuration(event.time - currentPage.startTime)
       currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
 
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {

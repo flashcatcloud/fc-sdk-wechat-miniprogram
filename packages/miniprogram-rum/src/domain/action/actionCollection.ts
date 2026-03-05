@@ -1,12 +1,11 @@
 import type { Observable } from '@flashcatcloud/miniprogram-core'
-import { generateUUID } from '@flashcatcloud/miniprogram-core'
+import { generateUUID, toServerDuration } from '@flashcatcloud/miniprogram-core'
 import type { UserActionEvent } from '@flashcatcloud/miniprogram-platform'
 import type { LifeCycle } from '../lifeCycle'
 import { LifeCycleEventType } from '../lifeCycle'
 import { trackEventCounts } from './trackEventCounts'
 import { waitIdlePageActivity } from './trackPageActivity'
 
-const MS_TO_NS = 1_000_000
 
 export function startActionCollection(lifeCycle: LifeCycle, actionObservable: Observable<UserActionEvent>) {
   let currentAction: { stop: () => void } | undefined
@@ -71,7 +70,7 @@ function createPendingAction(
           id,
           type: event.type,
           target: { name: event.targetName || 'unknown' },
-          loading_time: loadingTimeMs * MS_TO_NS,
+          loading_time: toServerDuration(loadingTimeMs),
           error: { count: eventCounts.counts.errorCount },
           long_task: { count: 0 },
           resource: { count: eventCounts.counts.resourceCount },

@@ -1,5 +1,5 @@
 import type { Observable } from '@flashcatcloud/miniprogram-core'
-import { generateUUID } from '@flashcatcloud/miniprogram-core'
+import { generateUUID, toServerDuration } from '@flashcatcloud/miniprogram-core'
 import type { RequestCompleteEvent } from '@flashcatcloud/miniprogram-platform'
 import type { ResourceType } from '../../rawRumEvent.types'
 import type { LifeCycle } from '../lifeCycle'
@@ -28,7 +28,7 @@ export function startRequestCollection(lifeCycle: LifeCycle, requestObservable: 
         url: event.url,
         method: event.method,
         status_code: event.statusCode,
-        duration: event.duration,
+        duration: toServerDuration(event.duration),
         error_message: event.errorMessage,
       },
     })
