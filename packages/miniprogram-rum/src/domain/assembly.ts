@@ -113,6 +113,7 @@ export function startRumAssembly({
     }
 
     const session = sessionManager.findTrackedSession() || sessionManager.renew()
+    sessionManager.expand()
     const page = getCurrentPage()
     const rawView = 'view' in rawEvent ? (rawEvent as Record<string, any>).view : undefined
     const pageName = page?.name || 'unknown'

@@ -91,3 +91,45 @@ test('sessionManager generates unique session ids', () => {
 
   assert.equal(ids.size, 100)
 })
+
+test('sessionManager expand updates expiration with throttle', () => {
+  const store = createMockStore()
+  const manager = startSessionManager(store)
+
+  const session = manager.renew()
+  const oldExpireAt = session.expireAt
+
+  // Mock time advancement
+  const originalNow = Date.now
+  try {
+    // 1. First expand should skip because of renew
+    Date.now = () => originalNow() + 1000
+    manager.expand()
+    assert.equal(store._getStored().expireAt, oldExpireAt)
+
+    // 2. Expand after throttle period
+    Date.now = () => originalNow() + 61 * 1000
+    manager.expand()
+    const expanded = store._getStored()
+    assert.ok(expanded.expireAt > oldExpireAt)
+    assert.equal(expanded.id, session.id)
+  } finally {
+    Date.now = originalNow
+  }
+})
+
+test('sessionManager hard timeout', () => {
+  const store = createMockStore()
+  const manager = startSessionManager(store)
+
+  // Create session 4 hours ago
+  const fourHoursPlus = 4 * 60 * 60 * 1000 + 1000
+  store.set({
+    id: 'old-session',
+    created: Date.now() - fourHoursPlus,
+    expireAt: Date.now() + 1000,
+  })
+
+  const found = manager.findTrackedSession()
+  assert.equal(found, undefined)
+})
