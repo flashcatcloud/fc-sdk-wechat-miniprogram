@@ -1,4 +1,6 @@
-export type RumEventType = 'view' | 'request' | 'error' | 'action' | 'custom'
+export type RumEventType = 'view' | 'resource' | 'error' | 'action' | 'custom'
+
+export type ResourceType = 'xhr' | 'upload' | 'download'
 
 export interface RawRumEventBase {
   date: number
@@ -37,10 +39,11 @@ export interface RawRumViewEvent extends RawRumEventBase {
   }
 }
 
-export interface RawRumRequestEvent extends RawRumEventBase {
-  type: 'request'
-  request: {
+export interface RawRumResourceEvent extends RawRumEventBase {
+  type: 'resource'
+  resource: {
     id: string
+    type: ResourceType
     url: string
     method: string
     status_code?: number
@@ -92,7 +95,7 @@ export interface RawRumCustomEvent extends RawRumEventBase {
 
 export type RawRumEvent =
   | RawRumViewEvent
-  | RawRumRequestEvent
+  | RawRumResourceEvent
   | RawRumErrorEvent
   | RawRumActionEvent
   | RawRumCustomEvent
