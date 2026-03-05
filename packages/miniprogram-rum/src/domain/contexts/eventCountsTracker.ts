@@ -25,7 +25,7 @@ export class EventCountsTracker {
         case 'error':
           this.counts.errorCount += 1
           break
-        case 'request':
+        case 'resource':
           this.counts.resourceCount += 1
           break
       }

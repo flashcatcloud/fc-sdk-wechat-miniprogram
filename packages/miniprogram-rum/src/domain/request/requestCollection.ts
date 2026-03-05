@@ -20,7 +20,7 @@ export function startRequestCollection(lifeCycle: LifeCycle, requestObservable: 
   const subscription = requestObservable.subscribe((event) => {
     lifeCycle.notify(LifeCycleEventType.REQUEST_COMPLETED, event)
     lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-      date: event.startTime + event.duration,
+      date: event.startTime,
       type: 'resource',
       resource: {
         id: generateUUID(),

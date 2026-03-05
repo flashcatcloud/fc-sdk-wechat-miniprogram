@@ -6,7 +6,7 @@ export interface PersistentPayload extends Payload {
 
 const STORAGE_KEY = '__FC_RUM_PENDING_PAYLOADS__'
 const MAX_PERSISTED_PAYLOADS = 10
-const MAX_TOTAL_BYTES = 1024 * 1024 // 1MiB
+const MAX_TOTAL_BYTES = 64 * 1024 // 64KiB
 const PAYLOAD_EXPIRATION = 24 * 60 * 60 * 1000 // 24 hours
 
 export interface StorageAdapter {
