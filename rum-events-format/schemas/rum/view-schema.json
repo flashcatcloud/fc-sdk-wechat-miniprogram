@@ -27,10 +27,26 @@
               "description": "UUID of the view",
               "readOnly": true
             },
+            "url": {
+              "type": "string",
+              "description": "View route or path",
+              "readOnly": true
+            },
             "name": {
               "type": "string",
               "description": "Page route name",
               "readOnly": false
+            },
+            "referrer": {
+              "type": "string",
+              "description": "Referrer route",
+              "readOnly": true
+            },
+            "loading_type": {
+              "type": "string",
+              "description": "Type of the loading of the view",
+              "enum": ["initial_load", "route_change"],
+              "readOnly": true
             },
             "loading_time": {
               "type": "integer",
@@ -42,6 +58,121 @@
               "type": "integer",
               "description": "Time spent on view in ns",
               "minimum": 0,
+              "readOnly": true
+            },
+            "is_active": {
+              "type": "boolean",
+              "description": "Whether the view is active",
+              "readOnly": true
+            },
+            "onload_to_onshow": {
+              "type": "integer",
+              "description": "Duration in ns between onLoad and onShow",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "onshow_to_onready": {
+              "type": "integer",
+              "description": "Duration in ns between onShow and onReady",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "first_render": {
+              "type": "integer",
+              "description": "Duration in ns of the first render",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "first_render_detail": {
+              "type": "object",
+              "description": "Detailed first render milestones",
+              "properties": {
+                "view_layer_ready_time": { "type": "integer", "minimum": 0 },
+                "init_data_send_time": { "type": "integer", "minimum": 0 },
+                "init_data_recv_time": { "type": "integer", "minimum": 0 },
+                "view_layer_render_start_time": { "type": "integer", "minimum": 0 },
+                "view_layer_render_end_time": { "type": "integer", "minimum": 0 }
+              },
+              "readOnly": true
+            },
+            "app_launch": {
+              "type": "integer",
+              "description": "Duration in ns of app launch, only on the initial view",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "evaluate_script": {
+              "type": "integer",
+              "description": "Duration in ns of script evaluation, only on the initial view",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "setdata": {
+              "type": "object",
+              "description": "setData statistics on the view",
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "readOnly": true
+                },
+                "duration": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "readOnly": true
+                }
+              },
+              "readOnly": true
+            },
+            "performance": {
+              "type": "object",
+              "description": "View performance metrics",
+              "properties": {
+                "fcp": {
+                  "type": "object",
+                  "properties": {
+                    "timestamp": { "type": "integer", "minimum": 0, "readOnly": true }
+                  },
+                  "readOnly": true
+                },
+                "lcp": {
+                  "type": "object",
+                  "properties": {
+                    "timestamp": { "type": "integer", "minimum": 0, "readOnly": true }
+                  },
+                  "readOnly": true
+                }
+              },
+              "readOnly": true
+            },
+            "custom_timings": {
+              "type": "object",
+              "description": "User custom timings of the view",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "readOnly": true
+            },
+            "action": {
+              "type": "object",
+              "properties": {
+                "count": { "type": "integer", "minimum": 0, "readOnly": true }
+              },
+              "readOnly": true
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "count": { "type": "integer", "minimum": 0, "readOnly": true }
+              },
+              "readOnly": true
+            },
+            "resource": {
+              "type": "object",
+              "properties": {
+                "count": { "type": "integer", "minimum": 0, "readOnly": true }
+              },
               "readOnly": true
             }
           },

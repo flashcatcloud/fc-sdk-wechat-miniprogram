@@ -12,6 +12,28 @@ export interface PageStateServerEntry {
   start: number
 }
 
+export interface ViewPerformanceData {
+  fcp?: {
+    timestamp: number
+  }
+  lcp?: {
+    timestamp: number
+  }
+}
+
+export interface ViewSetDataMetrics {
+  count: number
+  duration?: number
+}
+
+export interface ViewFirstRenderDetail {
+  view_layer_ready_time?: number
+  init_data_send_time?: number
+  init_data_recv_time?: number
+  view_layer_render_start_time?: number
+  view_layer_render_end_time?: number
+}
+
 export interface RawRumViewEvent extends RawRumEventBase {
   type: 'view'
   _dd: {
@@ -33,6 +55,15 @@ export interface RawRumViewEvent extends RawRumEventBase {
     loading_time?: number
     time_spent?: number
     is_active?: boolean
+    onload_to_onshow?: number
+    onshow_to_onready?: number
+    first_render?: number
+    first_render_detail?: ViewFirstRenderDetail
+    app_launch?: number
+    evaluate_script?: number
+    setdata?: ViewSetDataMetrics
+    performance?: ViewPerformanceData
+    custom_timings?: Record<string, number>
     action?: { count: number }
     error?: { count: number }
     resource?: { count: number }

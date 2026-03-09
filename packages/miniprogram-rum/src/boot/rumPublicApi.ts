@@ -10,7 +10,7 @@ export interface Strategy {
   initConfiguration: RumInitConfiguration | undefined
   addAction: (name: string, type?: string) => void
   addError: (message: string, source: 'app' | 'promise' | 'custom', stack?: string) => void
-  addTiming: (name: string, value?: number) => void
+  addTiming: (name: string, time?: number) => void
   addCustomEvent: (name: string, context?: Record<string, unknown>) => void
   setGlobalContext: (context: Context) => void
   setUser: (context: Context) => void
@@ -23,7 +23,7 @@ export interface RumPublicApi {
   init: (initConfiguration: RumInitConfiguration) => void
   addAction: (name: string, type?: string) => void
   addError: (message: string, source?: 'custom', stack?: string) => void
-  addTiming: (name: string, value?: number) => void
+  addTiming: (name: string, time?: number) => void
   addCustomEvent: (name: string, context?: Record<string, unknown>) => void
   setGlobalContext: (context: Context) => void
   setUser: (context: Context) => void
@@ -57,7 +57,7 @@ export function makeRumPublicApi(): RumPublicApi {
     init: monitor((initConfiguration) => strategy.init(initConfiguration, rumPublicApi)),
     addAction: monitor((name, type) => strategy.addAction(name, type)),
     addError: monitor((message, source, stack) => strategy.addError(message, source || 'custom', stack)),
-    addTiming: monitor((name, value) => strategy.addTiming(name, value)),
+    addTiming: monitor((name, time) => strategy.addTiming(name, time)),
     addCustomEvent: monitor((name, context) => strategy.addCustomEvent(name, context)),
     setGlobalContext: monitor((context) => strategy.setGlobalContext(context)),
     setUser: monitor((context) => strategy.setUser(context)),

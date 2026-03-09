@@ -15,7 +15,7 @@
     "type": {
       "type": "string",
       "description": "RUM event type",
-      "enum": ["page", "request", "error", "action", "performance", "custom"],
+      "enum": ["page", "view", "request", "resource", "error", "action", "performance", "custom"],
       "readOnly": true
     },
     "application": {

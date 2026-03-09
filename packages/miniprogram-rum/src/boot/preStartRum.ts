@@ -32,7 +32,7 @@ export function createPreStartStrategy(
     initConfiguration,
     addAction: (name, type) => buffer.push((strategy) => strategy.addAction(name, type)),
     addError: (message, source, stack) => buffer.push((strategy) => strategy.addError(message, source, stack)),
-    addTiming: (name, value) => buffer.push((strategy) => strategy.addTiming(name, value)),
+    addTiming: (name, time) => buffer.push((strategy) => strategy.addTiming(name, time)),
     addCustomEvent: (name, context) => buffer.push((strategy) => strategy.addCustomEvent(name, context)),
     setGlobalContext: (context) => buffer.push((strategy) => strategy.setGlobalContext(context)),
     setUser: (context) => buffer.push((strategy) => strategy.setUser(context)),

@@ -1,5 +1,5 @@
 import { AbstractLifeCycle as BaseLifeCycle } from '@flashcatcloud/miniprogram-core'
-import type { RawRumEvent } from '../rawRumEvent.types'
+import type { RawRumEvent, RawRumViewEvent } from '../rawRumEvent.types'
 import type { RumEvent } from '../rumEvent.types'
 import type { RequestCompleteEvent, RequestStartEvent } from '@flashcatcloud/miniprogram-platform'
 import type { PageEvent, UserActionEvent } from '@flashcatcloud/miniprogram-platform'
@@ -9,7 +9,9 @@ export const enum LifeCycleEventType {
   REQUEST_COMPLETED,
   ERROR_COLLECTED,
   ACTION_COLLECTED,
-  PERFORMANCE_COLLECTED,
+  PERFORMANCE_ENTRY_COLLECTED,
+  CUSTOM_TIMING_COLLECTED,
+  PAGE_SETDATA_COLLECTED,
   CUSTOM_EVENT_COLLECTED,
   RAW_RUM_EVENT_COLLECTED,
   RUM_EVENT_COLLECTED,
@@ -26,10 +28,19 @@ export type LifeCycleEventMap = {
     source: 'app' | 'promise' | 'custom'
   }
   [LifeCycleEventType.ACTION_COLLECTED]: UserActionEvent | { name: string; type: string; time: number; route?: string }
-  [LifeCycleEventType.PERFORMANCE_COLLECTED]: {
+  [LifeCycleEventType.PERFORMANCE_ENTRY_COLLECTED]: {
+    route?: string
+    metrics: Partial<RawRumViewEvent['view']>
+  }
+  [LifeCycleEventType.CUSTOM_TIMING_COLLECTED]: {
     name: string
-    value: number
+    time?: number
+    now: number
+  }
+  [LifeCycleEventType.PAGE_SETDATA_COLLECTED]: {
+    route: string
     time: number
+    duration: number
   }
   [LifeCycleEventType.CUSTOM_EVENT_COLLECTED]: {
     name: string

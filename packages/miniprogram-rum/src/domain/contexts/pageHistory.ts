@@ -1,4 +1,4 @@
-import type { PageStateServerEntry } from '../../rawRumEvent.types'
+import type { PageStateServerEntry, RawRumViewEvent } from '../../rawRumEvent.types'
 import { generateUUID } from '@flashcatcloud/miniprogram-core'
 
 export interface PageHistoryEntry {
@@ -6,11 +6,13 @@ export interface PageHistoryEntry {
   name: string
   startTime: number
   loadTime?: number
+  showTime?: number
   referrer?: string
   loadingType?: 'initial_load' | 'route_change'
   documentVersion: number
   updateIntervalId?: ReturnType<typeof setInterval>
   pageStates?: PageStateServerEntry[]
+  metrics?: Partial<RawRumViewEvent['view']>
 }
 
 export function createPageHistory() {

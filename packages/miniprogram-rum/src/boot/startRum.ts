@@ -38,12 +38,15 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     })
   }
 
-  const { pageObservable, actionObservable } = initPageObservable()
+  const { pageObservable, actionObservable, setDataObservable } = initPageObservable()
   const { observable: requestObservable, requestStartObservable } = initRequestObservable(adapter, configuration.tracing)
   const { appObservable, errorObservable, unhandledRejectionObservable } = initAppObservable(adapter)
 
   requestStartObservable.subscribe((event) => {
     lifeCycle.notify(LifeCycleEventType.REQUEST_STARTED, event)
+  })
+  setDataObservable.subscribe((event) => {
+    lifeCycle.notify(LifeCycleEventType.PAGE_SETDATA_COLLECTED, event)
   })
 
   const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration)
@@ -112,11 +115,11 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
         event: { name, context },
       })
     },
-    addTiming: (name: string, value?: number) => {
-      lifeCycle.notify(LifeCycleEventType.PERFORMANCE_COLLECTED, {
+    addTiming: (name: string, time?: number) => {
+      lifeCycle.notify(LifeCycleEventType.CUSTOM_TIMING_COLLECTED, {
         name,
-        value: value ?? 0,
-        time: Date.now(),
+        time,
+        now: Date.now(),
       })
     },
     stop: () => {
