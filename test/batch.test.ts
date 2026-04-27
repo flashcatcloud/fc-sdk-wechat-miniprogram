@@ -6,11 +6,15 @@ import { Observable } from '../packages/core/src/tools/observable'
 
 function createMockFlushController() {
   const flushObservable = new Observable<{ reason: string }>()
+  const afterAddDeltas: number[] = []
   return {
     flushObservable,
     notifyBeforeAddMessage: () => {},
-    notifyAfterAddMessage: () => {},
+    notifyAfterAddMessage: (bytesCountDelta?: number) => {
+      afterAddDeltas.push(bytesCountDelta ?? 0)
+    },
     triggerFlush: (reason: string) => flushObservable.notify({ reason }),
+    getAfterAddDeltas: () => afterAddDeltas,
   }
 }
 
@@ -137,4 +141,22 @@ test('batch does not send empty payload', () => {
   controller.triggerFlush('timer')
 
   assert.equal(request.getSent().length, 0)
+})
+
+test('batch reports written bytes to flush controller', () => {
+  const encoder = createIdentityEncoder()
+  const request = createMockRequest()
+  const controller = createMockFlushController()
+
+  const batch = createBatch({
+    encoder,
+    request,
+    flushController: controller,
+    messageBytesLimit: 1000,
+  })
+
+  batch.add({ id: 1 })
+  batch.add({ id: 2 })
+
+  assert.deepEqual(controller.getAfterAddDeltas(), ['{"id":1}'.length, '\n{"id":2}'.length])
 })

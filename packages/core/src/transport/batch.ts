@@ -43,9 +43,10 @@ export function createBatch({
     if (serializedMessage.length >= messageBytesLimit) {
       return
     }
-    flushController.notifyBeforeAddMessage(serializedMessage.length)
-    encoder.write(encoder.isEmpty ? serializedMessage : `\n${serializedMessage}`)
-    flushController.notifyAfterAddMessage()
+    const encodedMessage = encoder.isEmpty ? serializedMessage : `\n${serializedMessage}`
+    flushController.notifyBeforeAddMessage(encodedMessage.length)
+    encoder.write(encodedMessage)
+    flushController.notifyAfterAddMessage(encodedMessage.length)
   }
 
   function flush(event: FlushEvent) {

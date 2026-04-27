@@ -10,6 +10,7 @@ test('flushController notifies on timer', async () => {
     events.push(event.reason)
   })
 
+  controller.notifyAfterAddMessage(1)
   await new Promise((resolve) => setTimeout(resolve, 100))
   assert.ok(events.includes('timer'))
 })
@@ -22,7 +23,8 @@ test('flushController notifies on size limit', () => {
     events.push(event.reason)
   })
 
-  controller.notifyBeforeAddMessage(150)
+  controller.notifyAfterAddMessage(60)
+  controller.notifyBeforeAddMessage(50)
   assert.ok(events.includes('size'))
 })
 
@@ -35,9 +37,11 @@ test('flushController accumulates bytes', () => {
   })
 
   controller.notifyBeforeAddMessage(30)
+  controller.notifyAfterAddMessage(30)
   assert.equal(events.length, 0)
 
   controller.notifyBeforeAddMessage(30)
+  controller.notifyAfterAddMessage(30)
   assert.equal(events.length, 0)
 
   controller.notifyBeforeAddMessage(50)
@@ -74,10 +78,10 @@ test('flushController notifyAfterAddMessage adds delta bytes', () => {
     events.push(event.reason)
   })
 
-  controller.notifyBeforeAddMessage(50)
-  controller.notifyAfterAddMessage(60)
+  controller.notifyBeforeAddMessage(100)
+  controller.notifyAfterAddMessage(100)
 
-  // Total is now 110, should trigger size flush on next add
+  // Total is now 100, should trigger size flush on next add
   controller.notifyBeforeAddMessage(1)
   assert.ok(events.includes('size'))
 })
