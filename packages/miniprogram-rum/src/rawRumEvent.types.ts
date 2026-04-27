@@ -80,6 +80,8 @@ export interface RawRumResourceEvent extends RawRumEventBase {
     status_code?: number
     duration: number
     error_message?: string
+    trace_id?: string
+    span_id?: string
   }
 }
 

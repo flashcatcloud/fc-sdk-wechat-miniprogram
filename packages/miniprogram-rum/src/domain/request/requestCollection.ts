@@ -30,6 +30,8 @@ export function startRequestCollection(lifeCycle: LifeCycle, requestObservable: 
         status_code: event.statusCode,
         duration: toServerDuration(event.duration),
         error_message: event.errorMessage,
+        trace_id: event.traceId,
+        span_id: event.spanId,
       },
     })
   })

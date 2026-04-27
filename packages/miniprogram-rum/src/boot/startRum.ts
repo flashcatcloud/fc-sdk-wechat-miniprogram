@@ -13,6 +13,13 @@ import { startUserContext } from '../domain/contexts/userContext'
 import { startRumAssembly } from '../domain/assembly'
 import { startRumBatch } from '../transport/startRumBatch'
 import { LifeCycleEventType } from '../domain/lifeCycle'
+import type { PageCollection } from '../domain/page/pageCollection'
+
+const noopPageCollection: PageCollection = {
+  stop: () => undefined,
+  getCurrentPage: () => undefined,
+  startManualPage: () => undefined,
+}
 
 export function startRum(configuration: RumConfiguration, adapter: PlatformAdapter) {
   const lifeCycle = new LifeCycle()
@@ -49,7 +56,9 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     lifeCycle.notify(LifeCycleEventType.PAGE_SETDATA_COLLECTED, event)
   })
 
-  const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration)
+  const pageCollection = configuration.trackPages
+    ? startPageCollection(lifeCycle, pageObservable, configuration)
+    : noopPageCollection
   const requestCollection = configuration.trackRequests
     ? startRequestCollection(lifeCycle, requestObservable)
     : undefined
