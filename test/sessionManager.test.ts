@@ -133,3 +133,22 @@ test('sessionManager hard timeout', () => {
   const found = manager.findTrackedSession()
   assert.equal(found, undefined)
 })
+
+test('sessionManager is silent by default', () => {
+  const store = createMockStore()
+  const manager = startSessionManager(store)
+  const originalLog = console.log
+  const logs: unknown[][] = []
+
+  try {
+    console.log = (...args: unknown[]) => {
+      logs.push(args)
+    }
+    manager.findTrackedSession()
+    manager.renew()
+  } finally {
+    console.log = originalLog
+  }
+
+  assert.equal(logs.length, 0)
+})

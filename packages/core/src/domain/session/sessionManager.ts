@@ -44,34 +44,17 @@ export function startSessionManager(store: SessionStore): SessionManager {
     findTrackedSession: () => {
       const state = store.get()
       if (!state) {
-        console.log('[Session] findTrackedSession: no session in store')
         return undefined
       }
       if (isExpired(state)) {
-        const t = now()
-        console.log('[Session] findTrackedSession: session expired', {
-          id: state.id,
-          expireAt: new Date(state.expireAt).toISOString(),
-          created: new Date(state.created).toISOString(),
-          now: new Date(t).toISOString(),
-          idleExpired: state.expireAt <= t,
-          hardTimeout: t - state.created >= SESSION_TIME_OUT_DELAY,
-        })
         return undefined
       }
       return state
     },
     renew: () => {
-      const prevState = store.get()
       const state = createSession()
       store.set(state)
       lastExpand = now()
-      console.log('[Session] renew: new session created', {
-        newId: state.id,
-        prevId: prevState?.id,
-        expireAt: new Date(state.expireAt).toISOString(),
-        stack: new Error().stack,
-      })
       return state
     },
     expand: () => {
