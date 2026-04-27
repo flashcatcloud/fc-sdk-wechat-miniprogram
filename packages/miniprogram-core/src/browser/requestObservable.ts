@@ -1,4 +1,4 @@
-import { Observable } from '@flashcatcloud/miniprogram-core'
+import { isIntakeUrl, Observable } from '@flashcatcloud/miniprogram-core'
 import type {
   PlatformAdapter,
   RequestOptions,
@@ -110,6 +110,10 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     const method = (options.method || 'GET').toUpperCase()
     const url = options.url
 
+    if (isIntakeUrl(url)) {
+      return request(options)
+    }
+
     requestStartObservable.notify({ url, method, startTime })
 
     // 注入 trace header
@@ -152,6 +156,10 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
   function wrapUploadFile(uploadFile: (options: UploadFileOptions) => UploadTask, options: UploadFileOptions) {
     const startTime = Date.now()
     const url = options.url
+
+    if (isIntakeUrl(url)) {
+      return uploadFile(options)
+    }
 
     requestStartObservable.notify({ url, method: 'POST', startTime })
 
@@ -198,6 +206,10 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
   ) {
     const startTime = Date.now()
     const url = options.url
+
+    if (isIntakeUrl(url)) {
+      return downloadFile(options)
+    }
 
     requestStartObservable.notify({ url, method: 'GET', startTime })
 

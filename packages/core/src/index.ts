@@ -17,7 +17,7 @@ export { startSessionManager } from './domain/session/sessionManager'
 export type { InitConfiguration, Configuration } from './domain/configuration/configuration'
 export { validateAndBuildConfiguration } from './domain/configuration/configuration'
 export type { EndpointBuilder, ProxyFn } from './domain/configuration/endpointBuilder'
-export { createEndpointBuilder } from './domain/configuration/endpointBuilder'
+export { createEndpointBuilder, isIntakeUrl } from './domain/configuration/endpointBuilder'
 export type { Telemetry, TelemetryEvent } from './domain/telemetry/telemetry'
 export { startTelemetry } from './domain/telemetry/telemetry'
 

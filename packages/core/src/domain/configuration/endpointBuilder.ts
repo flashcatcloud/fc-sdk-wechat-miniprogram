@@ -18,6 +18,12 @@ export interface EndpointBuilder {
   tags: string[]
 }
 
+const INTAKE_URL_PARAMETERS = ['ddsource', 'dd-api-key', 'dd-evp-origin']
+
+export function isIntakeUrl(url: string): boolean {
+  return INTAKE_URL_PARAMETERS.every((parameter) => url.includes(parameter))
+}
+
 export function createEndpointBuilder(
   initConfiguration: {
     clientToken: string
