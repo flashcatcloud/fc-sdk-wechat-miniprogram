@@ -53,11 +53,28 @@ test('clear() triggers onLastUnsubscribe callback', () => {
   assert.equal(cleanupCalled, true)
 })
 
+test('clear() does not fire onLastUnsubscribe again if stale unsubscribe is called after clear()', () => {
+  let cleanupCount = 0
+  const observable = new Observable<number>(() => {
+    return () => {
+      cleanupCount++
+    }
+  })
+
+  const sub = observable.subscribe(() => {})
+  observable.clear()
+  assert.equal(cleanupCount, 1)
+
+  // Calling unsubscribe on the stale subscription must not fire cleanup again
+  sub.unsubscribe()
+  assert.equal(cleanupCount, 1)
+})
+
 test('Observable can be used again after clear() by subscribing new observers', () => {
   const observable = new Observable<number>()
   const received: number[] = []
 
-  const sub = observable.subscribe((data) => received.push(data))
+  observable.subscribe((data) => received.push(data))
   observable.notify(1)
   assert.deepEqual(received, [1])
 

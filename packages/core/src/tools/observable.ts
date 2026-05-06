@@ -30,7 +30,9 @@ export class Observable<T> {
   clear() {
     this.observers = []
     if (this.onLastUnsubscribe) {
-      this.onLastUnsubscribe()
+      const cleanup = this.onLastUnsubscribe
+      this.onLastUnsubscribe = undefined
+      cleanup()
     }
   }
 }
