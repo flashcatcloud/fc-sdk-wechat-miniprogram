@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/miniprogram-core" },
+    { "path": "packages/miniprogram-rum" }
+  ]
+}

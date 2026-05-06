@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "rum/request-schema.json",
+  "title": "RumRequestEvent",
+  "type": "object",
+  "description": "Schema of all properties of a Request event",
+  "allOf": [
+    {
+      "$ref": "_common-schema.json"
+    },
+    {
+      "required": ["type", "request"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "RUM event type",
+          "const": "request",
+          "readOnly": true
+        },
+        "request": {
+          "type": "object",
+          "description": "Request properties",
+          "required": ["url", "method", "duration"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL of the request",
+              "readOnly": false
+            },
+            "method": {
+              "type": "string",
+              "description": "HTTP method of the request",
+              "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+              "readOnly": true
+            },
+            "status_code": {
+              "type": "integer",
+              "description": "HTTP status code of the response",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "duration": {
+              "type": "integer",
+              "description": "Duration of the request in ns",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "error_message": {
+              "type": "string",
+              "description": "Error message if the request failed",
+              "readOnly": true
+            }
+          },
+          "readOnly": true
+        }
+      }
+    }
+  ]
+}
