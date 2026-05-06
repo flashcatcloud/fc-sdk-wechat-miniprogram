@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "rum/performance-schema.json",
+  "title": "RumPerformanceEvent",
+  "type": "object",
+  "description": "Schema of all properties of a Performance event",
+  "allOf": [
+    {
+      "$ref": "_common-schema.json"
+    },
+    {
+      "required": ["type", "performance"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "RUM event type",
+          "const": "performance",
+          "readOnly": true
+        },
+        "performance": {
+          "type": "object",
+          "description": "Performance metric properties",
+          "required": ["name", "value"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name of the performance metric",
+              "readOnly": false
+            },
+            "value": {
+              "type": "number",
+              "description": "Value of the performance metric",
+              "readOnly": true
+            }
+          },
+          "readOnly": true
+        }
+      }
+    }
+  ]
+}

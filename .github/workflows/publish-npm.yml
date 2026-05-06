@@ -1,0 +1,39 @@
+name: Publish NPM
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      confirm_publish:
+        description: 'Type "yes" to publish packages to npm'
+        required: true
+        default: 'no'
+
+jobs:
+  publish-npm:
+    if: github.event_name == 'push' || github.event.inputs.confirm_publish == 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run tests
+        run: yarn test
+
+      - name: Publish packages
+        run: yarn release:publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

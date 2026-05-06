@@ -1,0 +1,19 @@
+{
+  "name": "@flashcatcloud/miniprogram-platform",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "miniprogram": "dist",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@flashcatcloud/miniprogram-core": "0.1.0"
+  }
+}
