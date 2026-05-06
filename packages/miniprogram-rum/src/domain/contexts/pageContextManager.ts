@@ -6,7 +6,18 @@ export class PageContextManager {
   private isFirstPageLoad = true
 
   /**
-   * 通过 getCurrentPages() 获取上一页面路由作为 referrer
+   * Reset state (for wx.reLaunch and similar scenarios where the page stack is cleared).
+   * Called automatically when a new page loads with an empty page stack after the first page has loaded.
+   */
+  resetIfNeeded() {
+    const pages = getCurrentPages()
+    if (!this.isFirstPageLoad && pages.length <= 1) {
+      this.isFirstPageLoad = true
+    }
+  }
+
+  /**
+   * Get the previous page route as referrer via getCurrentPages()
    */
   getReferrer(): string | undefined {
     const pages = getCurrentPages()

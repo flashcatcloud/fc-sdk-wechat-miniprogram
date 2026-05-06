@@ -214,6 +214,7 @@ export function startPageCollection(
     if (event.lifecycle === 'load') {
       stopPageUpdate(currentPage)
       eventCountsTracker.reset()
+      pageContextManager.resetIfNeeded()
 
       currentPage = {
         id: generateUUID(),
