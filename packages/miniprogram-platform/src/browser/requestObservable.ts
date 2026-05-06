@@ -37,12 +37,18 @@ export interface TracingConfig {
   headerName?: string
 }
 
-export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
+declare let wx: {
+  request: (options: RequestOptions) => RequestTask
+  uploadFile: (options: UploadFileOptions) => UploadTask
+  downloadFile: (options: DownloadFileOptions) => DownloadTask
+}
+
+export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
   const observable = new Observable<RequestCompleteEvent>()
   const requestStartObservable = new Observable<RequestStartEvent>()
-  const originalRequest = adapter.request
-  const originalUploadFile = adapter.uploadFile
-  const originalDownloadFile = adapter.downloadFile
+  const originalWxRequest = wx.request
+  const originalWxUploadFile = wx.uploadFile
+  const originalWxDownloadFile = wx.downloadFile
 
   const tracing = {
     enabled: tracingConfig?.enabled ?? false,
@@ -71,20 +77,20 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     return { options, traceContext }
   }
 
-  function wrapRequest(options: RequestOptions) {
+  function wrapRequest(request: (options: RequestOptions) => RequestTask, options: RequestOptions) {
     const startTime = Date.now()
     const method = (options.method || 'GET').toUpperCase()
     const url = options.url
 
     if (isInternalRequest(options) || isIntakeUrl(url)) {
-      return originalRequest.call(adapter, options)
+      return request(options)
     }
 
     requestStartObservable.notify({ url, method, startTime })
 
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
-    return originalRequest.call(adapter, {
+    return request({
       ...optionsWithTrace,
       success: (res) => {
         options.success?.(res)
@@ -118,19 +124,19 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     })
   }
 
-  function wrapUploadFile(options: UploadFileOptions) {
+  function wrapUploadFile(uploadFile: (options: UploadFileOptions) => UploadTask, options: UploadFileOptions) {
     const startTime = Date.now()
     const url = options.url
 
     if (isIntakeUrl(url)) {
-      return originalUploadFile.call(adapter, options)
+      return uploadFile(options)
     }
 
     requestStartObservable.notify({ url, method: 'POST', startTime })
 
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
-    return originalUploadFile.call(adapter, {
+    return uploadFile({
       ...optionsWithTrace,
       success: (res) => {
         options.success?.(res)
@@ -164,19 +170,22 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     })
   }
 
-  function wrapDownloadFile(options: DownloadFileOptions) {
+  function wrapDownloadFile(
+    downloadFile: (options: DownloadFileOptions) => DownloadTask,
+    options: DownloadFileOptions,
+  ) {
     const startTime = Date.now()
     const url = options.url
 
     if (isIntakeUrl(url)) {
-      return originalDownloadFile.call(adapter, options)
+      return downloadFile(options)
     }
 
     requestStartObservable.notify({ url, method: 'GET', startTime })
 
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
-    return originalDownloadFile.call(adapter, {
+    return downloadFile({
       ...optionsWithTrace,
       success: (res) => {
         options.success?.(res)
@@ -210,18 +219,17 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     })
   }
 
-  // Patch adapter methods so all calls through the adapter are intercepted
-  adapter.request = wrapRequest
-  adapter.uploadFile = wrapUploadFile
-  adapter.downloadFile = wrapDownloadFile
+  wx.request = (options: RequestOptions) => wrapRequest(originalWxRequest, options)
+  wx.uploadFile = (options: UploadFileOptions) => wrapUploadFile(originalWxUploadFile, options)
+  wx.downloadFile = (options: DownloadFileOptions) => wrapDownloadFile(originalWxDownloadFile, options)
 
   return {
     observable,
     requestStartObservable,
     stop: () => {
-      adapter.request = originalRequest
-      adapter.uploadFile = originalUploadFile
-      adapter.downloadFile = originalDownloadFile
+      wx.request = originalWxRequest
+      wx.uploadFile = originalWxUploadFile
+      wx.downloadFile = originalWxDownloadFile
     },
   }
 }

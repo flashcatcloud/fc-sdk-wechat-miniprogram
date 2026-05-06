@@ -257,3 +257,91 @@ test('requestObservable sets requestType=xhr for regular requests', () => {
     ;(globalThis as any).wx = originalWx
   }
 })
+
+test('requestObservable tracks direct wx.request calls', () => {
+  const originalWx = (globalThis as any).wx
+  mockWx()
+
+  try {
+    const adapter = createAdapter()
+    const { observable, stop } = initRequestObservable(adapter)
+    const completed: any[] = []
+    observable.subscribe((event) => completed.push(event))
+
+    ;(globalThis as any).wx.request({ url: 'https://api.example.com/direct' })
+
+    stop()
+    assert.equal(completed.length, 1)
+    assert.equal(completed[0].url, 'https://api.example.com/direct')
+    assert.equal(completed[0].requestType, 'xhr')
+  } finally {
+    ;(globalThis as any).wx = originalWx
+  }
+})
+
+test('requestObservable tracks direct wx.uploadFile calls', () => {
+  const originalWx = (globalThis as any).wx
+  mockWx()
+
+  try {
+    const adapter = createAdapter()
+    const { observable, stop } = initRequestObservable(adapter)
+    const completed: any[] = []
+    observable.subscribe((event) => completed.push(event))
+
+    ;(globalThis as any).wx.uploadFile({
+      url: 'https://api.example.com/direct-upload',
+      filePath: '/tmp/test.jpg',
+      name: 'file',
+    })
+
+    stop()
+    assert.equal(completed.length, 1)
+    assert.equal(completed[0].url, 'https://api.example.com/direct-upload')
+    assert.equal(completed[0].requestType, 'upload')
+  } finally {
+    ;(globalThis as any).wx = originalWx
+  }
+})
+
+test('requestObservable tracks direct wx.downloadFile calls', () => {
+  const originalWx = (globalThis as any).wx
+  mockWx()
+
+  try {
+    const adapter = createAdapter()
+    const { observable, stop } = initRequestObservable(adapter)
+    const completed: any[] = []
+    observable.subscribe((event) => completed.push(event))
+
+    ;(globalThis as any).wx.downloadFile({ url: 'https://api.example.com/direct-file.zip' })
+
+    stop()
+    assert.equal(completed.length, 1)
+    assert.equal(completed[0].url, 'https://api.example.com/direct-file.zip')
+    assert.equal(completed[0].requestType, 'download')
+  } finally {
+    ;(globalThis as any).wx = originalWx
+  }
+})
+
+test('requestObservable stop restores original wx.request', () => {
+  const originalWx = (globalThis as any).wx
+  mockWx()
+
+  try {
+    const adapter = createAdapter()
+    const originalRequest = (globalThis as any).wx.request
+    const { observable, stop } = initRequestObservable(adapter)
+    const completed: any[] = []
+    observable.subscribe((event) => completed.push(event))
+
+    stop()
+    assert.equal((globalThis as any).wx.request, originalRequest)
+
+    ;(globalThis as any).wx.request({ url: 'https://api.example.com/after-stop' })
+    assert.equal(completed.length, 0)
+  } finally {
+    ;(globalThis as any).wx = originalWx
+  }
+})
