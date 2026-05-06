@@ -28,11 +28,6 @@ export class PageContextManager {
     return prevPage.route
   }
 
-  /**
-   * 判断当前页面加载类型：
-   * - initial_load: 小程序启动后加载的第一个页面
-   * - route_change: 通过路由跳转打开的页面
-   */
   getLoadingType(): LoadingType {
     const pages = getCurrentPages()
     if (this.isFirstPageLoad && pages.length <= 1) {
@@ -40,12 +35,5 @@ export class PageContextManager {
       return 'initial_load'
     }
     return 'route_change'
-  }
-
-  /**
-   * 重置状态（用于 wx.reLaunch 等场景）
-   */
-  reset() {
-    this.isFirstPageLoad = true
   }
 }
