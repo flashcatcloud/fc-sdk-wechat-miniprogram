@@ -44,7 +44,7 @@ export interface Configuration {
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
   if (!initConfiguration.clientToken || !initConfiguration.applicationId) {
-    console.error('[FlashCat RUM] 初始化失败：缺少必填配置项 clientToken 或 applicationId')
+    console.error('[FlashCat RUM] Init failed: missing required config clientToken or applicationId')
     return
   }
 
@@ -69,12 +69,12 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   }
 
   if (debug) {
-    console.log('[FlashCat RUM] ✅ 初始化成功', {
+    console.log('[FlashCat RUM] Initialized successfully', {
       applicationId: config.applicationId,
-      配置方式: initConfiguration.proxy ? 'proxy' : 'site',
+      endpointType: initConfiguration.proxy ? 'proxy' : 'site',
       site: initConfiguration.site || 'browser.flashcat.cloud',
       proxy: initConfiguration.proxy,
-      上报地址: endpointBuilder.urlPrefix,
+      intakeUrl: endpointBuilder.urlPrefix,
       service: config.service,
       env: config.env,
       version: config.version,

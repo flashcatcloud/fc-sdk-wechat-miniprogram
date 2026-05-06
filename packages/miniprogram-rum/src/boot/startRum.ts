@@ -30,7 +30,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   }
 
   if (configuration.debug) {
-    console.log('[FlashCat RUM] 🔧 启动监控功能', {
+    console.log('[FlashCat RUM] Starting monitoring', {
       trackPages: configuration.trackPages,
       trackActions: configuration.trackActions,
       trackRequests: configuration.trackRequests,
@@ -45,9 +45,9 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     })
   }
 
-  const { pageObservable, actionObservable, setDataObservable } = initPageObservable()
-  const { observable: requestObservable, requestStartObservable } = initRequestObservable(adapter, configuration.tracing)
-  const { appObservable, errorObservable, unhandledRejectionObservable } = initAppObservable(adapter)
+  const { pageObservable, actionObservable, setDataObservable, stop: stopPageObservable } = initPageObservable()
+  const { observable: requestObservable, requestStartObservable, stop: stopRequestObservable } = initRequestObservable(adapter, configuration.tracing)
+  const { appObservable, errorObservable, unhandledRejectionObservable, stop: stopAppObservable } = initAppObservable(adapter)
 
   requestStartObservable.subscribe((event) => {
     lifeCycle.notify(LifeCycleEventType.REQUEST_STARTED, event)
@@ -71,13 +71,13 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   if (configuration.trackErrors) {
     errorObservable.subscribe((event) => {
       if (configuration.debug) {
-        console.log('[FlashCat RUM] ⚠️ 捕获到 App 错误', event.message)
+        console.log('[FlashCat RUM] Captured app error', event.message)
       }
       errorCollection.addError(event.message, 'app')
     })
     unhandledRejectionObservable.subscribe((event) => {
       if (configuration.debug) {
-        console.log('[FlashCat RUM] ⚠️ 捕获到未处理的 Promise 拒绝', event.reason)
+        console.log('[FlashCat RUM] Captured unhandled promise rejection', event.reason)
       }
       errorCollection.addError(event.reason, 'promise')
     })
@@ -132,6 +132,9 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
       })
     },
     stop: () => {
+      stopAppObservable()
+      stopPageObservable()
+      stopRequestObservable()
       rumBatch.stop()
       rumAssembly.stop()
       requestCollection?.stop()
