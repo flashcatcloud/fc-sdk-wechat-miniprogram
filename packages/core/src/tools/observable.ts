@@ -26,6 +26,13 @@ export class Observable<T> {
   notify(data: T) {
     this.observers.forEach((observer) => observer(data))
   }
+
+  clear() {
+    this.observers = []
+    if (this.onLastUnsubscribe) {
+      this.onLastUnsubscribe()
+    }
+  }
 }
 
 export function mergeObservables<T>(...observables: Array<Observable<T>>) {
