@@ -1,6 +1,7 @@
 import type { EndpointBuilder, HttpRequest, Payload } from '@flashcatcloud/miniprogram-core'
 import { newRetryState, sendWithRetryStrategy, persistPayload } from '@flashcatcloud/miniprogram-core'
 import type { PlatformAdapter } from '../platform/types'
+import { markInternalRequest } from '../platform/internalRequest'
 
 export function createHttpRequest(
   adapter: PlatformAdapter,
@@ -20,32 +21,34 @@ export function createHttpRequest(
       })
     }
 
-    adapter.request({
-      url,
-      method: 'POST',
-      data: payload.data,
-      header: {
-        'Content-Type': 'text/plain;charset=UTF-8',
-      },
-      success: (res: any) => {
-        if (debug) {
-          console.log('[FlashCat RUM] ✅ 数据上报成功', {
-            statusCode: res.statusCode,
-            url,
-          })
-        }
-        onResponse({ status: res.statusCode })
-      },
-      fail: (err: any) => {
-        if (debug) {
-          console.error('[FlashCat RUM] ❌ 数据上报失败', {
-            url,
-            error: err.errMsg || err,
-          })
-        }
-        onResponse({ status: 0 }) // Use 0 for network errors
-      },
-    })
+    adapter.request(
+      markInternalRequest({
+        url,
+        method: 'POST',
+        data: payload.data,
+        header: {
+          'Content-Type': 'text/plain;charset=UTF-8',
+        },
+        success: (res: any) => {
+          if (debug) {
+            console.log('[FlashCat RUM] ✅ 数据上报成功', {
+              statusCode: res.statusCode,
+              url,
+            })
+          }
+          onResponse({ status: res.statusCode })
+        },
+        fail: (err: any) => {
+          if (debug) {
+            console.error('[FlashCat RUM] ❌ 数据上报失败', {
+              url,
+              error: err.errMsg || err,
+            })
+          }
+          onResponse({ status: 0 }) // Use 0 for network errors
+        },
+      }),
+    )
   }
 
   function sendPayload(payload: Payload) {

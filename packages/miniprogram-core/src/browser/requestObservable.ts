@@ -8,6 +8,7 @@ import type {
   DownloadFileOptions,
   DownloadTask,
 } from '../platform/types'
+import { isInternalRequest } from '../platform/internalRequest'
 import type { TraceContext } from '@flashcatcloud/miniprogram-core'
 import { createTraceContext, createChildSpan, generateTraceparent } from '@flashcatcloud/miniprogram-core'
 
@@ -61,10 +62,9 @@ declare let wx: {
   downloadFile: (options: DownloadFileOptions) => DownloadTask
 }
 
-export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
+export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
   const observable = new Observable<RequestCompleteEvent>()
   const requestStartObservable = new Observable<RequestStartEvent>()
-  const originalRequest = adapter.request
   const originalWxRequest = wx.request
   const originalWxUploadFile = wx.uploadFile
   const originalWxDownloadFile = wx.downloadFile
@@ -110,7 +110,7 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     const method = (options.method || 'GET').toUpperCase()
     const url = options.url
 
-    if (isIntakeUrl(url)) {
+    if (isInternalRequest(options) || isIntakeUrl(url)) {
       return request(options)
     }
 
@@ -250,7 +250,6 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     })
   }
 
-  adapter.request = (options: RequestOptions) => wrapRequest(originalRequest, options)
   wx.request = (options: RequestOptions) => wrapRequest(originalWxRequest, options)
   wx.uploadFile = (options: UploadFileOptions) => wrapUploadFile(originalWxUploadFile, options)
   wx.downloadFile = (options: DownloadFileOptions) => wrapDownloadFile(originalWxDownloadFile, options)
@@ -259,7 +258,6 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
     observable,
     requestStartObservable,
     stop: () => {
-      adapter.request = originalRequest
       wx.request = originalWxRequest
       wx.uploadFile = originalWxUploadFile
       wx.downloadFile = originalWxDownloadFile

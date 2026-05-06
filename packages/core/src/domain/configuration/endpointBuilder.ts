@@ -7,7 +7,7 @@ export type TrackType = 'rum'
 /**
  * proxy 为函数类型时的签名
  * path: /api/v2/rum
- * parameters: ddsource=miniapp&dd-api-key=xxx&...
+ * parameters: ddsource=miniapp&ddtags=xxx&...
  */
 export type ProxyFn = (options: { path: string; parameters: string }) => string
 
@@ -18,7 +18,7 @@ export interface EndpointBuilder {
   tags: string[]
 }
 
-const INTAKE_URL_PARAMETERS = ['ddsource', 'dd-api-key', 'dd-evp-origin']
+const INTAKE_URL_PARAMETERS = ['ddsource', 'ddtags']
 
 export function isIntakeUrl(url: string): boolean {
   return INTAKE_URL_PARAMETERS.every((parameter) => url.includes(parameter))
