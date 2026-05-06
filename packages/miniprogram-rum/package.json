@@ -4,10 +4,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "miniprogram": "dist",
-  "private": true,
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -b"
   },

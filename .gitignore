@@ -26,6 +26,7 @@ logs/
 .env
 .env.local
 .env.*.local
+.npmrc
 
 # Testing
 coverage/
@@ -41,7 +42,6 @@ Thumbs.db
 .DS_Store
 
 docs
-scripts
 
 # Lock files (optional, 根据团队规范决定)
 # package-lock.json
