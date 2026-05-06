@@ -4,7 +4,7 @@ const packages = [
     name: '@flashcatcloud/miniprogram-core',
   },
   {
-    directory: 'packages/miniprogram-core',
+    directory: 'packages/miniprogram-platform',
     name: '@flashcatcloud/miniprogram-platform',
   },
   {

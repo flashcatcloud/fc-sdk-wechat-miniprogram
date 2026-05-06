@@ -7,9 +7,9 @@
   "scripts": {
     "test": "node --import tsx --test test/*.test.ts",
     "test:coverage": "c8 --include 'packages/*/src/**/*.ts' --exclude 'packages/*/src/**/*.types.ts' node --import tsx --test test/*.test.ts",
-    "build": "tsc -b packages/*",
+    "build": "tsc -b",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo dist",
-    "pack:all": "yarn build && cd packages/core && yarn pack --filename flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-core && yarn pack --filename flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack --filename flashcatcloud-miniprogram-rum.tgz",
+    "pack:all": "yarn build && cd packages/core && yarn pack --filename flashcatcloud-miniprogram-core.tgz && cd ../miniprogram-platform && yarn pack --filename flashcatcloud-miniprogram-platform.tgz && cd ../miniprogram-rum && yarn pack --filename flashcatcloud-miniprogram-rum.tgz",
     "release:version": "node scripts/release/set-version.js",
     "release:check": "node scripts/release/check-release.js",
     "release:dry-run": "node scripts/release/publish-npm.js --dry-run",

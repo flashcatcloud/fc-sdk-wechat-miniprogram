@@ -16,7 +16,7 @@ FlashCat 小程序 RUM（Real User Monitoring）SDK，用于监控小程序的�
 
 | 包名 | npm | 说明 |
 | ---- | --- | ---- |
-| miniprogram-core | `@flashcatcloud/miniprogram-core` | SDK 通用核心能力，包括配置、会话、传输和批量上报 |
+| core | `@flashcatcloud/miniprogram-core` | SDK 通用核心能力，包括配置、会话、传输和批量上报 |
 | miniprogram-platform | `@flashcatcloud/miniprogram-platform` | 小程序平台适配层，包括网络请求、生命周期和平台 API 封装 |
 | miniprogram-rum | `@flashcatcloud/miniprogram-rum` | 小程序 RUM 入口包，业务方通常只需要安装这个包 |
 
@@ -208,7 +208,7 @@ yarn pack:all
 打包后的 `.tgz` 文件位于各个 package 目录下：
 
 - `packages/core/flashcatcloud-miniprogram-core.tgz`
-- `packages/miniprogram-core/flashcatcloud-miniprogram-platform.tgz`
+- `packages/miniprogram-platform/flashcatcloud-miniprogram-platform.tgz`
 - `packages/miniprogram-rum/flashcatcloud-miniprogram-rum.tgz`
 
 ## 发包流程
@@ -232,7 +232,7 @@ yarn pack:all
 cd /path/to/wechat-miniprogram-demo
 npm install \
   /path/to/fc-sdk-wechat-miniprogram/packages/core/flashcatcloud-miniprogram-core.tgz \
-  /path/to/fc-sdk-wechat-miniprogram/packages/miniprogram-core/flashcatcloud-miniprogram-platform.tgz \
+  /path/to/fc-sdk-wechat-miniprogram/packages/miniprogram-platform/flashcatcloud-miniprogram-platform.tgz \
   /path/to/fc-sdk-wechat-miniprogram/packages/miniprogram-rum/flashcatcloud-miniprogram-rum.tgz
 ```
 

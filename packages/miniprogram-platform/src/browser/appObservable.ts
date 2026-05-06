@@ -37,5 +37,10 @@ export function initAppObservable(adapter: PlatformAdapter) {
     appObservable,
     errorObservable,
     unhandledRejectionObservable,
+    stop: () => {
+      appObservable.clear()
+      errorObservable.clear()
+      unhandledRejectionObservable.clear()
+    },
   }
 }
