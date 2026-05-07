@@ -30,7 +30,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   }
 
   if (configuration.debug) {
-    console.log('[FlashCat RUM] Starting monitoring', {
+    console.log('[FlashCat RUM][Debug] RUM monitoring started', {
       trackPages: configuration.trackPages,
       trackActions: configuration.trackActions,
       trackRequests: configuration.trackRequests,
@@ -71,13 +71,13 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   if (configuration.trackErrors) {
     errorObservable.subscribe((event) => {
       if (configuration.debug) {
-        console.log('[FlashCat RUM] Captured app error', event.message)
+        console.log('[FlashCat RUM][Debug] App error captured', event.message)
       }
       errorCollection.addError(event.message, 'app')
     })
     unhandledRejectionObservable.subscribe((event) => {
       if (configuration.debug) {
-        console.log('[FlashCat RUM] Captured unhandled promise rejection', event.reason)
+        console.log('[FlashCat RUM][Debug] Unhandled promise rejection captured', event.reason)
       }
       errorCollection.addError(event.reason, 'promise')
     })

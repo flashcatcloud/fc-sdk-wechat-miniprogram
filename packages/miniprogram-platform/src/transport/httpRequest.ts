@@ -14,7 +14,7 @@ export function createHttpRequest(
     const url = endpointBuilder.build({ encoding: payload.encoding })
 
     if (debug) {
-      console.log('[FlashCat RUM] Sending data', {
+      console.log('[FlashCat RUM][Debug] Sending RUM payload', {
         url,
         dataSize: `${payload.bytesCount} bytes`,
         retryCount: payload.retry?.count,
@@ -31,7 +31,7 @@ export function createHttpRequest(
         },
         success: (res: any) => {
           if (debug) {
-            console.log('[FlashCat RUM] Data sent successfully', {
+            console.log('[FlashCat RUM][Debug] RUM payload sent', {
               statusCode: res.statusCode,
               url,
             })
@@ -40,7 +40,7 @@ export function createHttpRequest(
         },
         fail: (err: any) => {
           if (debug) {
-            console.error('[FlashCat RUM] Failed to send data', {
+            console.error('[FlashCat RUM][Error] Failed to send RUM payload', {
               url,
               error: err.errMsg || err,
             })
@@ -54,7 +54,7 @@ export function createHttpRequest(
   function sendPayload(payload: Payload) {
     sendWithRetryStrategy(payload, retryState, requestStrategy, (exhaustedPayload) => {
       if (debug) {
-        console.warn('[FlashCat RUM] Retry limit exceeded, persisting to local storage')
+        console.warn('[FlashCat RUM][Warn] Retry limit exceeded; payload persisted to local storage')
       }
       persistPayload(adapter, exhaustedPayload)
     })

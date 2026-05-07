@@ -46,7 +46,7 @@ export interface Configuration {
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
   if (!initConfiguration.clientToken || !initConfiguration.applicationId) {
-    console.error('[FlashCat RUM] Init failed: missing required config clientToken or applicationId')
+    console.error('[FlashCat RUM][Error] Initialization failed: missing required configuration clientToken or applicationId')
     return
   }
 
@@ -73,7 +73,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   }
 
   if (debug) {
-    console.log('[FlashCat RUM] Initialized successfully', {
+    console.log('[FlashCat RUM][Debug] SDK initialization completed', {
       applicationId: config.applicationId,
       endpointType: initConfiguration.proxy ? 'proxy' : 'site',
       site: initConfiguration.site || 'browser.flashcat.cloud',

@@ -51,7 +51,7 @@ export function startRumBatch(
 
   const subscription = lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => {
     if (configuration.debug) {
-      console.log('[FlashCat RUM] Event collected', {
+      console.log('[FlashCat RUM][Debug] RUM event collected', {
         type: (event as any).type,
         date: (event as any).date,
         event,
@@ -61,7 +61,7 @@ export function startRumBatch(
   })
 
   if (configuration.debug) {
-    console.log('[FlashCat RUM] Batch reporting started', {
+    console.log('[FlashCat RUM][Debug] Batch reporting started', {
       flushInterval: `${configuration.flushInterval}ms`,
       maxMessageSize: '256KB',
     })

@@ -19,7 +19,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
+
+      - name: Validate manual publish branch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "Publish" ]]; then
+            echo "Manual publish must run from the Publish branch. Current ref: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Validate tag publish branch
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        run: |
+          git fetch origin Publish:refs/remotes/origin/Publish
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/Publish; then
+            echo "Tag publish must point to a commit already contained in the Publish branch."
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,6 +52,11 @@ jobs:
         run: yarn test
 
       - name: Publish packages
-        run: yarn release:publish
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            yarn release:publish --expected-version "${GITHUB_REF_NAME#v}"
+          else
+            yarn release:publish
+          fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
