@@ -3,13 +3,23 @@ import assert from 'node:assert/strict'
 import { startRum } from '../packages/miniprogram-rum/src/boot/startRum'
 import { validateAndBuildRumConfiguration } from '../packages/miniprogram-rum/src/domain/configuration/configuration'
 import { LifeCycleEventType } from '../packages/miniprogram-rum/src/domain/lifeCycle'
-import type { PlatformAdapter, RequestOptions } from '../packages/miniprogram-core/src/platform/types'
+import type { PlatformAdapter, RequestOptions, UploadFileOptions, DownloadFileOptions } from '../packages/miniprogram-platform/src/platform/types'
 
 function createAdapter(): PlatformAdapter {
   let storage: unknown
   return {
     request: (options: RequestOptions) => {
       options.success?.({ statusCode: 200, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    uploadFile: (options: UploadFileOptions) => {
+      options.success?.({ statusCode: 200, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    downloadFile: (options: DownloadFileOptions) => {
+      options.success?.({ statusCode: 200, tempFilePath: '/tmp/file' })
       options.complete?.()
       return { abort: () => undefined }
     },
@@ -21,7 +31,7 @@ function createAdapter(): PlatformAdapter {
       storage = undefined
     },
     getSystemInfoSync: () => ({}),
-    getNetworkType: ({ success }) => success({ networkType: 'wifi' }),
+    getNetworkType: ({ success }: { success: (res: any) => void }) => success({ networkType: 'wifi' }),
     onNetworkStatusChange: () => undefined,
     onAppShow: () => undefined,
     onAppHide: () => undefined,

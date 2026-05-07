@@ -51,19 +51,19 @@ export function startRumBatch(
 
   const subscription = lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => {
     if (configuration.debug) {
-      console.log('[FlashCat RUM] 📊 收集到事件', {
+      console.log('[FlashCat RUM][Debug] RUM event collected', {
         type: (event as any).type,
         date: (event as any).date,
-        事件: event,
+        event,
       })
     }
     batch.add(event as unknown as Record<string, unknown>)
   })
 
   if (configuration.debug) {
-    console.log('[FlashCat RUM] 🚀 批量上报已启动', {
-      上报间隔: `${configuration.flushInterval}ms`,
-      最大消息大小: '256KB',
+    console.log('[FlashCat RUM][Debug] Batch reporting started', {
+      flushInterval: `${configuration.flushInterval}ms`,
+      maxMessageSize: '256KB',
     })
   }
 

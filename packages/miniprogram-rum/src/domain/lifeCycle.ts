@@ -3,6 +3,7 @@ import type { RawRumEvent, RawRumViewEvent } from '../rawRumEvent.types'
 import type { RumEvent } from '../rumEvent.types'
 import type { RequestCompleteEvent, RequestStartEvent } from '@flashcatcloud/miniprogram-platform'
 import type { PageEvent, UserActionEvent } from '@flashcatcloud/miniprogram-platform'
+import type { SessionState } from '@flashcatcloud/miniprogram-core'
 
 export const enum LifeCycleEventType {
   PAGE_EVENT,
@@ -16,6 +17,7 @@ export const enum LifeCycleEventType {
   RAW_RUM_EVENT_COLLECTED,
   RUM_EVENT_COLLECTED,
   REQUEST_STARTED,
+  SESSION_RENEWED,
 }
 
 export type LifeCycleEventMap = {
@@ -49,6 +51,9 @@ export type LifeCycleEventMap = {
   }
   [LifeCycleEventType.RAW_RUM_EVENT_COLLECTED]: RawRumEvent
   [LifeCycleEventType.RUM_EVENT_COLLECTED]: RumEvent
+  [LifeCycleEventType.SESSION_RENEWED]: {
+    session: SessionState
+  }
 }
 
 export class LifeCycle extends BaseLifeCycle<LifeCycleEventMap> {}

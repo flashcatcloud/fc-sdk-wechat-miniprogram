@@ -14,9 +14,9 @@ export function createHttpRequest(
     const url = endpointBuilder.build({ encoding: payload.encoding })
 
     if (debug) {
-      console.log('[FlashCat RUM] 📤 发送数据', {
+      console.log('[FlashCat RUM][Debug] Sending RUM payload', {
         url,
-        数据大小: `${payload.bytesCount} bytes`,
+        dataSize: `${payload.bytesCount} bytes`,
         retryCount: payload.retry?.count,
       })
     }
@@ -31,7 +31,7 @@ export function createHttpRequest(
         },
         success: (res: any) => {
           if (debug) {
-            console.log('[FlashCat RUM] ✅ 数据上报成功', {
+            console.log('[FlashCat RUM][Debug] RUM payload sent', {
               statusCode: res.statusCode,
               url,
             })
@@ -40,12 +40,12 @@ export function createHttpRequest(
         },
         fail: (err: any) => {
           if (debug) {
-            console.error('[FlashCat RUM] ❌ 数据上报失败', {
+            console.error('[FlashCat RUM][Error] Failed to send RUM payload', {
               url,
               error: err.errMsg || err,
             })
           }
-          onResponse({ status: 0 }) // Use 0 for network errors
+          onResponse({ status: 0 })
         },
       }),
     )
@@ -54,7 +54,7 @@ export function createHttpRequest(
   function sendPayload(payload: Payload) {
     sendWithRetryStrategy(payload, retryState, requestStrategy, (exhaustedPayload) => {
       if (debug) {
-        console.warn('[FlashCat RUM] ⚠️ 重试次数超限，持久化到本地存储')
+        console.warn('[FlashCat RUM][Warn] Retry limit exceeded; payload persisted to local storage')
       }
       persistPayload(adapter, exhaustedPayload)
     })
@@ -63,7 +63,6 @@ export function createHttpRequest(
   return {
     send: sendPayload,
     sendOnExit: (payload) => {
-      // Direct send on exit, no retry queue
       requestStrategy(payload, () => {
         /* ignore */
       })

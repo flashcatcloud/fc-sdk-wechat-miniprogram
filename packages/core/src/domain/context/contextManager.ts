@@ -2,6 +2,12 @@ export interface Context {
   [key: string]: unknown
 }
 
+export type PropertiesConfig = {
+  [key: string]: {
+    type?: 'string'
+  }
+}
+
 export interface ContextManager {
   setContext: (context: Context) => void
   getContext: () => Context
@@ -10,15 +16,33 @@ export interface ContextManager {
   clearContext: () => void
 }
 
-export function createContextManager(): ContextManager {
+function cloneContext(context: Context): Context {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(context)
+  }
+  return JSON.parse(JSON.stringify(context)) as Context
+}
+
+function ensureProperties(context: Context, propertiesConfig: PropertiesConfig): Context {
+  const next = { ...context }
+  for (const [key, { type }] of Object.entries(propertiesConfig)) {
+    const value = next[key]
+    if (type === 'string' && value !== undefined && value !== null && value !== '') {
+      next[key] = String(value)
+    }
+  }
+  return next
+}
+
+export function createContextManager({ propertiesConfig = {} }: { propertiesConfig?: PropertiesConfig } = {}): ContextManager {
   let context: Context = {}
   return {
     setContext: (next) => {
-      context = { ...next }
+      context = cloneContext(ensureProperties(next, propertiesConfig))
     },
-    getContext: () => ({ ...context }),
+    getContext: () => cloneContext(context),
     setContextProperty: (key, value) => {
-      context = { ...context, [key]: value }
+      context = cloneContext(ensureProperties({ ...context, [key]: value }, propertiesConfig))
     },
     removeContextProperty: (key) => {
       const { [key]: _, ...rest } = context

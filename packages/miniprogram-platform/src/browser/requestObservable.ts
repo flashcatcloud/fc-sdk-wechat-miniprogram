@@ -25,34 +25,15 @@ export interface RequestCompleteEvent {
   duration: number
   statusCode?: number
   errorMessage?: string
-  requestType?: 'xhr' | 'upload' | 'download' // 请求类型
-  traceId?: string // Trace ID (用于分布式追踪)
-  spanId?: string // Span ID (当前请求的 span)
+  requestType?: 'xhr' | 'upload' | 'download'
+  traceId?: string
+  spanId?: string
 }
 
 export interface TracingConfig {
-  /**
-   * 是否启用分布式追踪
-   * @default false
-   */
   enabled?: boolean
-
-  /**
-   * 采样率 (0-1)
-   * @default 1 (100% 采样)
-   */
   sampleRate?: number
-
-  /**
-   * 根 trace context (可选)
-   * 如果提供，所有请求将作为此 trace 的子 span
-   */
   rootTraceContext?: TraceContext
-
-  /**
-   * 自定义 trace header 名称 (可选)
-   * @default 'traceparent'
-   */
   headerName?: string
 }
 
@@ -69,7 +50,6 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
   const originalWxUploadFile = wx.uploadFile
   const originalWxDownloadFile = wx.downloadFile
 
-  // Trace 配置
   const tracing = {
     enabled: tracingConfig?.enabled ?? false,
     sampleRate: tracingConfig?.sampleRate ?? 1,
@@ -77,16 +57,10 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
     headerName: tracingConfig?.headerName ?? 'traceparent',
   }
 
-  /**
-   * 判断是否应该采样
-   */
   function shouldSample(): boolean {
     return tracing.enabled && Math.random() < tracing.sampleRate
   }
 
-  /**
-   * 为请求注入 W3C Trace Context header (OpenTelemetry 标准)
-   */
   function injectTraceHeader<T extends { header?: Record<string, string> }>(
     options: T,
   ): { options: T; traceContext: TraceContext | null } {
@@ -94,10 +68,8 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
       return { options, traceContext: null }
     }
 
-    // 创建或继承 trace context
     const traceContext = tracing.rootTraceContext ? createChildSpan(tracing.rootTraceContext) : createTraceContext(true)
 
-    // 注入 W3C traceparent header (OpenTelemetry 标准)
     const traceparent = generateTraceparent(traceContext)
     options.header = options.header || {}
     options.header[tracing.headerName] = traceparent
@@ -116,7 +88,6 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
 
     requestStartObservable.notify({ url, method, startTime })
 
-    // 注入 trace header
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
     return request({
@@ -163,7 +134,6 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
 
     requestStartObservable.notify({ url, method: 'POST', startTime })
 
-    // 注入 trace header
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
     return uploadFile({
@@ -172,7 +142,7 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
         options.success?.(res)
         observable.notify({
           url,
-          method: 'POST', // uploadFile 总是 POST
+          method: 'POST',
           startTime,
           duration: Date.now() - startTime,
           statusCode: res.statusCode,
@@ -213,7 +183,6 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
 
     requestStartObservable.notify({ url, method: 'GET', startTime })
 
-    // 注入 trace header
     const { options: optionsWithTrace, traceContext } = injectTraceHeader(options)
 
     return downloadFile({
@@ -222,7 +191,7 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
         options.success?.(res)
         observable.notify({
           url,
-          method: 'GET', // downloadFile 总是 GET
+          method: 'GET',
           startTime,
           duration: Date.now() - startTime,
           statusCode: res.statusCode,

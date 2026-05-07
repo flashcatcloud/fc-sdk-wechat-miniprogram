@@ -1,13 +1,19 @@
 import type {
+  DownloadFileOptions,
+  DownloadTask,
   NetworkStatusChangeResult,
   NetworkTypeResult,
   PlatformAdapter,
   RequestOptions,
   RequestTask,
+  UploadFileOptions,
+  UploadTask,
 } from '../types'
 
 declare const wx: {
   request: (options: RequestOptions) => RequestTask
+  uploadFile: (options: UploadFileOptions) => UploadTask
+  downloadFile: (options: DownloadFileOptions) => DownloadTask
   setStorageSync: (key: string, data: unknown) => void
   getStorageSync: (key: string) => unknown
   removeStorageSync: (key: string) => void
@@ -27,6 +33,8 @@ declare const wx: {
 
 export const wechatAdapter: PlatformAdapter = {
   request: (options) => wx.request(options),
+  uploadFile: (options) => wx.uploadFile(options),
+  downloadFile: (options) => wx.downloadFile(options),
   setStorageSync: (key, data) => wx.setStorageSync(key, data),
   getStorageSync: (key) => wx.getStorageSync(key),
   removeStorageSync: (key) => wx.removeStorageSync(key),

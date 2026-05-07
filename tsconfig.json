@@ -2,7 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/core" },
-    { "path": "packages/miniprogram-core" },
+    { "path": "packages/miniprogram-platform" },
     { "path": "packages/miniprogram-rum" }
   ]
 }

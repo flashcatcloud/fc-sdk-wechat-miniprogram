@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { Observable } from '../packages/core/src/tools/observable'
 import { LifeCycle, LifeCycleEventType } from '../packages/miniprogram-rum/src/domain/lifeCycle'
 import { startRequestCollection } from '../packages/miniprogram-rum/src/domain/request/requestCollection'
-import type { RequestCompleteEvent } from '../packages/miniprogram-core/src/browser/requestObservable'
+import type { RequestCompleteEvent } from '../packages/miniprogram-platform/src/browser/requestObservable'
 
 test('requestCollection maps trace identifiers to resource event', () => {
   const lifeCycle = new LifeCycle()

@@ -58,25 +58,23 @@ function createPendingAction(
   const eventCounts = trackEventCounts(lifeCycle)
 
   const activityTracker = waitIdlePageActivity(lifeCycle, (result) => {
-    if (result.hadActivity && result.endTime !== undefined) {
-      const loadingTimeMs = result.endTime - startTime
-      lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
-        date: startTime,
-        type: 'action',
-        ...(event.x !== undefined && event.y !== undefined
-          ? { _dd: { action: { position: { x: event.x, y: event.y } } } }
-          : {}),
-        action: {
-          id,
-          type: event.type,
-          target: { name: event.targetName || 'unknown' },
-          loading_time: toServerDuration(loadingTimeMs),
-          error: { count: eventCounts.counts.errorCount },
-          long_task: { count: 0 },
-          resource: { count: eventCounts.counts.resourceCount },
-        },
-      })
-    }
+    const loadingTimeMs = result.endTime !== undefined ? result.endTime - startTime : undefined
+    lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+      date: startTime,
+      type: 'action',
+      ...(event.x !== undefined && event.y !== undefined
+        ? { _dd: { action: { position: { x: event.x, y: event.y } } } }
+        : {}),
+      action: {
+        id,
+        type: event.type,
+        target: { name: event.targetName || 'unknown' },
+        ...(loadingTimeMs !== undefined ? { loading_time: toServerDuration(loadingTimeMs) } : {}),
+        error: { count: eventCounts.counts.errorCount },
+        long_task: { count: 0 },
+        resource: { count: eventCounts.counts.resourceCount },
+      },
+    })
     eventCounts.stop()
     onDone()
   })

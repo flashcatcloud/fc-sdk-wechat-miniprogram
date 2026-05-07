@@ -27,6 +27,7 @@ export interface InitConfiguration {
   env?: string
   version?: string
   debug?: boolean // 是否开启调试模式
+  trackAnonymousUser?: boolean
 }
 
 export interface Configuration {
@@ -40,17 +41,19 @@ export interface Configuration {
   env?: string
   version?: string
   debug: boolean
+  trackAnonymousUser: boolean
 }
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
   if (!initConfiguration.clientToken || !initConfiguration.applicationId) {
-    console.error('[FlashCat RUM] 初始化失败：缺少必填配置项 clientToken 或 applicationId')
+    console.error('[FlashCat RUM][Error] Initialization failed: missing required configuration clientToken or applicationId')
     return
   }
 
   const sessionSampleRate = initConfiguration.sessionSampleRate ?? 100
   const flushInterval = initConfiguration.flushInterval ?? 15000
   const debug = initConfiguration.debug ?? false
+  const trackAnonymousUser = initConfiguration.trackAnonymousUser ?? true
 
   const configurationTags = buildTags(initConfiguration)
   const endpointBuilder = createEndpointBuilder(initConfiguration, 'rum', configurationTags)
@@ -66,20 +69,22 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
     env: initConfiguration.env,
     version: initConfiguration.version,
     debug,
+    trackAnonymousUser,
   }
 
   if (debug) {
-    console.log('[FlashCat RUM] ✅ 初始化成功', {
+    console.log('[FlashCat RUM][Debug] SDK initialization completed', {
       applicationId: config.applicationId,
-      配置方式: initConfiguration.proxy ? 'proxy' : 'site',
+      endpointType: initConfiguration.proxy ? 'proxy' : 'site',
       site: initConfiguration.site || 'browser.flashcat.cloud',
       proxy: initConfiguration.proxy,
-      上报地址: endpointBuilder.urlPrefix,
+      intakeUrl: endpointBuilder.urlPrefix,
       service: config.service,
       env: config.env,
       version: config.version,
       sessionSampleRate: config.sessionSampleRate,
       flushInterval: `${config.flushInterval}ms`,
+      trackAnonymousUser: config.trackAnonymousUser,
     })
   }
 

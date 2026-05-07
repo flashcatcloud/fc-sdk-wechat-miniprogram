@@ -18,10 +18,11 @@ export type RumEvent = RawRumEvent & {
     has_replay: boolean
     sampled_for_replay: boolean
   }
-  user?: {
+  usr?: {
     id?: string
     name?: string
     email?: string
+    anonymous_id?: string
   }
   view: {
     id: string

@@ -65,6 +65,8 @@ export interface NetworkStatusChangeResult {
 
 export interface PlatformAdapter {
   request: (options: RequestOptions) => RequestTask
+  uploadFile: (options: UploadFileOptions) => UploadTask
+  downloadFile: (options: DownloadFileOptions) => DownloadTask
   setStorageSync: (key: string, data: unknown) => void
   getStorageSync: (key: string) => unknown
   removeStorageSync: (key: string) => void
