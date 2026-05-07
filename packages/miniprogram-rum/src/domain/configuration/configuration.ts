@@ -51,6 +51,7 @@ export interface RumConfiguration extends Configuration {
   trackPerformance: boolean
   trackPages: boolean
   eventRateLimiterThreshold: number
+  trackAnonymousUser: boolean
   tracing: {
     enabled: boolean
     sampleRate: number
@@ -74,6 +75,7 @@ export function validateAndBuildRumConfiguration(
     trackPerformance: initConfiguration.trackPerformance ?? true,
     trackPages: initConfiguration.trackPages ?? true,
     eventRateLimiterThreshold: initConfiguration.eventRateLimiterThreshold ?? 3000,
+    trackAnonymousUser: base.trackAnonymousUser,
     tracing: {
       enabled: initConfiguration.tracing?.enabled ?? false,
       sampleRate: initConfiguration.tracing?.sampleRate ?? 1.0,

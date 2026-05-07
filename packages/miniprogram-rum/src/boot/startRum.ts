@@ -24,7 +24,7 @@ const noopPageCollection: PageCollection = {
 export function startRum(configuration: RumConfiguration, adapter: PlatformAdapter) {
   const lifeCycle = new LifeCycle()
 
-  const sessionManager = startRumSessionManager(adapter)
+  const sessionManager = startRumSessionManager(adapter, configuration)
   if (!sessionManager.findTrackedSession()) {
     sessionManager.renew()
   }

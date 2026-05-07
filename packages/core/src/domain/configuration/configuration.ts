@@ -27,6 +27,7 @@ export interface InitConfiguration {
   env?: string
   version?: string
   debug?: boolean // 是否开启调试模式
+  trackAnonymousUser?: boolean
 }
 
 export interface Configuration {
@@ -40,6 +41,7 @@ export interface Configuration {
   env?: string
   version?: string
   debug: boolean
+  trackAnonymousUser: boolean
 }
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
@@ -51,6 +53,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   const sessionSampleRate = initConfiguration.sessionSampleRate ?? 100
   const flushInterval = initConfiguration.flushInterval ?? 15000
   const debug = initConfiguration.debug ?? false
+  const trackAnonymousUser = initConfiguration.trackAnonymousUser ?? true
 
   const configurationTags = buildTags(initConfiguration)
   const endpointBuilder = createEndpointBuilder(initConfiguration, 'rum', configurationTags)
@@ -66,6 +69,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
     env: initConfiguration.env,
     version: initConfiguration.version,
     debug,
+    trackAnonymousUser,
   }
 
   if (debug) {
@@ -80,6 +84,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
       version: config.version,
       sessionSampleRate: config.sessionSampleRate,
       flushInterval: `${config.flushInterval}ms`,
+      trackAnonymousUser: config.trackAnonymousUser,
     })
   }
 

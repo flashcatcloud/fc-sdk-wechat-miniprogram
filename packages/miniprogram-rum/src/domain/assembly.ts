@@ -68,6 +68,10 @@ function mapNetworkTypeFields(networkType: string): Pick<Connectivity, 'interfac
   }
 }
 
+function isEmptyObject(object: Record<string, unknown>) {
+  return Object.keys(object).length === 0
+}
+
 export function startRumAssembly({
   lifeCycle,
   configuration,
@@ -124,6 +128,14 @@ export function startRumAssembly({
     const page = getCurrentPage()
     const rawView = 'view' in rawEvent ? (rawEvent as Record<string, any>).view : undefined
     const pageName = page?.name || 'unknown'
+    const usr = userContext.getContext()
+    if (session.anonymousId && !usr.anonymous_id && configuration.trackAnonymousUser) {
+      if (isEmptyObject(usr)) {
+        usr.id = session.anonymousId
+      }
+      usr.anonymous_id = session.anonymousId
+    }
+
     const rumEvent: RumEvent = {
       ...rawEvent,
       application: { id: configuration.applicationId },
@@ -140,9 +152,11 @@ export function startRumAssembly({
         name: rawView?.name || pageName,
       },
       connectivity: connectivityMonitor.getConnectivity(),
-      user: userContext.getContext(),
       context: globalContext.getContext(),
       source: 'miniprogram',
+    }
+    if (!isEmptyObject(usr)) {
+      rumEvent.usr = usr as RumEvent['usr']
     }
 
     const allow = configuration.beforeSend ? configuration.beforeSend(rumEvent) !== false : true

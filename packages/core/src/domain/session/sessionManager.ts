@@ -9,6 +9,7 @@ export interface SessionState {
   id: string
   created: number
   expireAt: number
+  anonymousId?: string
 }
 
 export interface SessionStore {
@@ -24,7 +25,10 @@ export interface SessionManager {
   expire: () => void
 }
 
-export function startSessionManager(store: SessionStore): SessionManager {
+export function startSessionManager(
+  store: SessionStore,
+  { trackAnonymousUser = true }: { trackAnonymousUser?: boolean } = {},
+): SessionManager {
   let lastExpand = 0
 
   function isExpired(state: SessionState) {
@@ -37,6 +41,7 @@ export function startSessionManager(store: SessionStore): SessionManager {
       id: generateUUID(),
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
+      anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
     }
   }
 

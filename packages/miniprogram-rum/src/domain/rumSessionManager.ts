@@ -1,6 +1,7 @@
 import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 import type { SessionManager, SessionState, SessionStore } from '@flashcatcloud/miniprogram-core'
 import { startSessionManager } from '@flashcatcloud/miniprogram-core'
+import type { RumConfiguration } from './configuration/configuration'
 
 const SESSION_STORAGE_KEY = 'fc_rum_session'
 
@@ -22,6 +23,6 @@ export function createSessionStore(adapter: PlatformAdapter): SessionStore {
   }
 }
 
-export function startRumSessionManager(adapter: PlatformAdapter): SessionManager {
-  return startSessionManager(createSessionStore(adapter))
+export function startRumSessionManager(adapter: PlatformAdapter, configuration: RumConfiguration): SessionManager {
+  return startSessionManager(createSessionStore(adapter), { trackAnonymousUser: configuration.trackAnonymousUser })
 }
