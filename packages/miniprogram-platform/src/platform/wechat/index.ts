@@ -31,10 +31,41 @@ declare const wx: {
   onUnhandledRejection: (callback: (res: { reason: string }) => void) => void
 }
 
+let requestDelegate: ((options: RequestOptions) => RequestTask) | undefined
+let uploadFileDelegate: ((options: UploadFileOptions) => UploadTask) | undefined
+let downloadFileDelegate: ((options: DownloadFileOptions) => DownloadTask) | undefined
+
 export const wechatAdapter: PlatformAdapter = {
-  request: (options) => wx.request(options),
-  uploadFile: (options) => wx.uploadFile(options),
-  downloadFile: (options) => wx.downloadFile(options),
+  request: (options) => (requestDelegate || wx.request)(options),
+  uploadFile: (options) => (uploadFileDelegate || wx.uploadFile)(options),
+  downloadFile: (options) => (downloadFileDelegate || wx.downloadFile)(options),
+  patchRequest: (request) => {
+    const originalRequest = wx.request
+    requestDelegate = originalRequest
+    wx.request = request
+    return () => {
+      wx.request = originalRequest
+      requestDelegate = undefined
+    }
+  },
+  patchUploadFile: (uploadFile) => {
+    const originalUploadFile = wx.uploadFile
+    uploadFileDelegate = originalUploadFile
+    wx.uploadFile = uploadFile
+    return () => {
+      wx.uploadFile = originalUploadFile
+      uploadFileDelegate = undefined
+    }
+  },
+  patchDownloadFile: (downloadFile) => {
+    const originalDownloadFile = wx.downloadFile
+    downloadFileDelegate = originalDownloadFile
+    wx.downloadFile = downloadFile
+    return () => {
+      wx.downloadFile = originalDownloadFile
+      downloadFileDelegate = undefined
+    }
+  },
   setStorageSync: (key, data) => wx.setStorageSync(key, data),
   getStorageSync: (key) => wx.getStorageSync(key),
   removeStorageSync: (key) => wx.removeStorageSync(key),

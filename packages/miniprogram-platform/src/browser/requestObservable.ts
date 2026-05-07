@@ -37,18 +37,12 @@ export interface TracingConfig {
   headerName?: string
 }
 
-declare let wx: {
-  request: (options: RequestOptions) => RequestTask
-  uploadFile: (options: UploadFileOptions) => UploadTask
-  downloadFile: (options: DownloadFileOptions) => DownloadTask
-}
-
-export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
+export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: TracingConfig) {
   const observable = new Observable<RequestCompleteEvent>()
   const requestStartObservable = new Observable<RequestStartEvent>()
-  const originalWxRequest = wx.request
-  const originalWxUploadFile = wx.uploadFile
-  const originalWxDownloadFile = wx.downloadFile
+  const originalAdapterRequest = adapter.request
+  const originalAdapterUploadFile = adapter.uploadFile
+  const originalAdapterDownloadFile = adapter.downloadFile
 
   const tracing = {
     enabled: tracingConfig?.enabled ?? false,
@@ -219,17 +213,24 @@ export function initRequestObservable(_adapter: PlatformAdapter, tracingConfig?:
     })
   }
 
-  wx.request = (options: RequestOptions) => wrapRequest(originalWxRequest, options)
-  wx.uploadFile = (options: UploadFileOptions) => wrapUploadFile(originalWxUploadFile, options)
-  wx.downloadFile = (options: DownloadFileOptions) => wrapDownloadFile(originalWxDownloadFile, options)
+  adapter.request = (options: RequestOptions) => wrapRequest(originalAdapterRequest, options)
+  adapter.uploadFile = (options: UploadFileOptions) => wrapUploadFile(originalAdapterUploadFile, options)
+  adapter.downloadFile = (options: DownloadFileOptions) => wrapDownloadFile(originalAdapterDownloadFile, options)
+
+  const restoreRequest = adapter.patchRequest?.((options: RequestOptions) => adapter.request(options))
+  const restoreUploadFile = adapter.patchUploadFile?.((options: UploadFileOptions) => adapter.uploadFile(options))
+  const restoreDownloadFile = adapter.patchDownloadFile?.((options: DownloadFileOptions) => adapter.downloadFile(options))
 
   return {
     observable,
     requestStartObservable,
     stop: () => {
-      wx.request = originalWxRequest
-      wx.uploadFile = originalWxUploadFile
-      wx.downloadFile = originalWxDownloadFile
+      restoreRequest?.()
+      restoreUploadFile?.()
+      restoreDownloadFile?.()
+      adapter.request = originalAdapterRequest
+      adapter.uploadFile = originalAdapterUploadFile
+      adapter.downloadFile = originalAdapterDownloadFile
     },
   }
 }

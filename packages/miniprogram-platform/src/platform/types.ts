@@ -67,6 +67,9 @@ export interface PlatformAdapter {
   request: (options: RequestOptions) => RequestTask
   uploadFile: (options: UploadFileOptions) => UploadTask
   downloadFile: (options: DownloadFileOptions) => DownloadTask
+  patchRequest?: (request: (options: RequestOptions) => RequestTask) => () => void
+  patchUploadFile?: (uploadFile: (options: UploadFileOptions) => UploadTask) => () => void
+  patchDownloadFile?: (downloadFile: (options: DownloadFileOptions) => DownloadTask) => () => void
   setStorageSync: (key: string, data: unknown) => void
   getStorageSync: (key: string) => unknown
   removeStorageSync: (key: string) => void
