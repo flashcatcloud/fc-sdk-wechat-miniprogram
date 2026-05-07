@@ -112,7 +112,14 @@ export function startRumAssembly({
       return
     }
 
-    const session = sessionManager.findTrackedSession() || sessionManager.renew()
+    let session = sessionManager.findTrackedSession()
+    if (!session) {
+      session = sessionManager.renew()
+      lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
+      if (rawEvent.type === 'view') {
+        return
+      }
+    }
     sessionManager.expand()
     const page = getCurrentPage()
     const rawView = 'view' in rawEvent ? (rawEvent as Record<string, any>).view : undefined

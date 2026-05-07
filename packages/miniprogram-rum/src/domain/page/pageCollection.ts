@@ -210,6 +210,26 @@ export function startPageCollection(
     emitViewUpdate(currentPage)
   })
 
+  const sessionRenewedSubscription = lifeCycle.subscribe(LifeCycleEventType.SESSION_RENEWED, ({ session }) => {
+    if (!currentPage || session.created <= currentPage.startTime) {
+      return
+    }
+    stopPageUpdate(currentPage)
+    eventCountsTracker.reset()
+
+    currentPage = {
+      id: generateUUID(),
+      name: currentPage.name,
+      startTime: session.created,
+      referrer: currentPage.referrer,
+      loadingType: currentPage.loadingType,
+      documentVersion: 0,
+    }
+
+    emitViewUpdate(currentPage)
+    currentPage.updateIntervalId = schedulePageUpdate(currentPage)
+  })
+
   const pageSubscription = pageObservable.subscribe((event) => {
     if (event.lifecycle === 'load') {
       stopPageUpdate(currentPage)
@@ -258,6 +278,7 @@ export function startPageCollection(
     if (event.lifecycle === 'show' && !currentPage) {
       stopPageUpdate(currentPage)
       eventCountsTracker.reset()
+      pageContextManager.resetIfNeeded()
 
       currentPage = {
         id: generateUUID(),
@@ -319,12 +340,14 @@ export function startPageCollection(
       performanceSubscription.unsubscribe()
       timingSubscription.unsubscribe()
       setDataSubscription.unsubscribe()
+      sessionRenewedSubscription.unsubscribe()
       pageSubscription.unsubscribe()
     },
     getCurrentPage: () => currentPage,
     startManualPage: (name: string) => {
       stopPageUpdate(currentPage)
       eventCountsTracker.reset()
+      pageContextManager.resetIfNeeded()
 
       currentPage = {
         id: generateUUID(),
