@@ -127,6 +127,9 @@ export function startRumAssembly({
     let session = sessionManager.findTrackedSession(shouldUseEventTimeForSession ? eventTime : undefined)
     if (!session) {
       session = sessionManager.renew()
+      if (session.isTracked === false) {
+        return
+      }
       lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
       if (rawEvent.type === 'view') {
         return

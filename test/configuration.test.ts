@@ -50,6 +50,27 @@ test('validateAndBuildConfiguration uses custom sessionSampleRate', () => {
   assert.equal(result.sessionSampleRate, 50)
 })
 
+test('validateAndBuildConfiguration rejects sessionSampleRate outside 0-100', () => {
+  const originalError = console.error
+  const errors: unknown[] = []
+  console.error = (...args: unknown[]) => {
+    errors.push(args[0])
+  }
+
+  try {
+    const result = validateAndBuildConfiguration({
+      clientToken: 'token-123',
+      applicationId: 'app-123',
+      sessionSampleRate: 200,
+    })
+
+    assert.equal(result, undefined)
+    assert.deepEqual(errors, ['[FlashCat RUM][Error] Session Sample Rate should be a number between 0 and 100'])
+  } finally {
+    console.error = originalError
+  }
+})
+
 test('validateAndBuildConfiguration uses default flushInterval', () => {
   const result = validateAndBuildConfiguration({
     clientToken: 'token-123',

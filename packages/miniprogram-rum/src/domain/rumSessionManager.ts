@@ -24,5 +24,8 @@ export function createSessionStore(adapter: PlatformAdapter): SessionStore {
 }
 
 export function startRumSessionManager(adapter: PlatformAdapter, configuration: RumConfiguration): SessionManager {
-  return startSessionManager(createSessionStore(adapter), { trackAnonymousUser: configuration.trackAnonymousUser })
+  return startSessionManager(createSessionStore(adapter), {
+    trackAnonymousUser: configuration.trackAnonymousUser,
+    sessionSampleRate: configuration.sessionSampleRate,
+  })
 }

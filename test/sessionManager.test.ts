@@ -43,6 +43,17 @@ test('sessionManager findTrackedSession returns valid session', () => {
   assert.deepEqual(found, created)
 })
 
+test('sessionManager findTrackedSession returns undefined for sampled-out session', () => {
+  const store = createMockStore()
+  const manager = startSessionManager(store, { sessionSampleRate: 0 })
+
+  const created = manager.renew()
+  const found = manager.findTrackedSession()
+
+  assert.equal(created.isTracked, false)
+  assert.equal(found, undefined)
+})
+
 test('sessionManager findTrackedSession returns undefined when no session', () => {
   const store = createMockStore()
   const manager = startSessionManager(store)

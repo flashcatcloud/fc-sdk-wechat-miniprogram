@@ -50,6 +50,10 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
     return
   }
 
+  if (!isSampleRate(initConfiguration.sessionSampleRate, 'Session')) {
+    return
+  }
+
   const sessionSampleRate = initConfiguration.sessionSampleRate ?? 100
   const flushInterval = initConfiguration.flushInterval ?? 15000
   const debug = initConfiguration.debug ?? false
@@ -89,4 +93,15 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   }
 
   return config
+}
+
+function isSampleRate(sampleRate: unknown, name: string): boolean {
+  if (
+    sampleRate !== undefined &&
+    (typeof sampleRate !== 'number' || Number.isNaN(sampleRate) || sampleRate < 0 || sampleRate > 100)
+  ) {
+    console.error(`[FlashCat RUM][Error] ${name} Sample Rate should be a number between 0 and 100`)
+    return false
+  }
+  return true
 }

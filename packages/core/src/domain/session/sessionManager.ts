@@ -12,6 +12,7 @@ export interface SessionState {
   created: number
   expireAt: number
   anonymousId?: string
+  isTracked?: boolean
 }
 
 export interface SessionStore {
@@ -29,7 +30,7 @@ export interface SessionManager {
 
 export function startSessionManager(
   store: SessionStore,
-  { trackAnonymousUser = true }: { trackAnonymousUser?: boolean } = {},
+  { trackAnonymousUser = true, sessionSampleRate = 100 }: { trackAnonymousUser?: boolean; sessionSampleRate?: number } = {},
 ): SessionManager {
   let lastExpand = 0
   const sessionHistory = createValueHistory<SessionState>(() => now(), {
@@ -53,6 +54,7 @@ export function startSessionManager(
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
+      isTracked: performDraw(sessionSampleRate),
     }
   }
 
@@ -60,7 +62,7 @@ export function startSessionManager(
     findTrackedSession: (time) => {
       if (time !== undefined) {
         const historicalSession = sessionHistory.find(time)?.value
-        if (historicalSession && !isExpiredAt(historicalSession, time)) {
+        if (historicalSession && historicalSession.isTracked !== false && !isExpiredAt(historicalSession, time)) {
           return historicalSession
         }
         return undefined
@@ -69,7 +71,7 @@ export function startSessionManager(
       if (!state) {
         return undefined
       }
-      if (isExpiredAt(state, now())) {
+      if (state.isTracked === false || isExpiredAt(state, now())) {
         return undefined
       }
       return state
@@ -103,4 +105,8 @@ export function startSessionManager(
 
 function cloneSessionState(state: SessionState): SessionState {
   return { ...state }
+}
+
+function performDraw(sampleRate: number): boolean {
+  return Math.random() * 100 < sampleRate
 }

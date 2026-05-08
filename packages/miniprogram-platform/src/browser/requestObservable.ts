@@ -46,13 +46,13 @@ export function initRequestObservable(adapter: PlatformAdapter, tracingConfig?: 
 
   const tracing = {
     enabled: tracingConfig?.enabled ?? false,
-    sampleRate: tracingConfig?.sampleRate ?? 1,
+    sampleRate: tracingConfig?.sampleRate ?? 100,
     rootTraceContext: tracingConfig?.rootTraceContext,
     headerName: tracingConfig?.headerName ?? 'traceparent',
   }
 
   function shouldSample(): boolean {
-    return tracing.enabled && Math.random() < tracing.sampleRate
+    return tracing.enabled && Math.random() * 100 < tracing.sampleRate
   }
 
   function injectTraceHeader<T extends { header?: Record<string, string> }>(

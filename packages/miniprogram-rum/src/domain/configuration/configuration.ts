@@ -25,8 +25,8 @@ export interface RumInitConfiguration extends InitConfiguration {
     enabled?: boolean
 
     /**
-     * 采样率 (0-1)
-     * @default 1.0 (100% 采样)
+     * 采样率百分比：100 表示全量采样，0 表示不采样
+     * @default 100
      */
     sampleRate?: number
 
@@ -63,6 +63,10 @@ export interface RumConfiguration extends Configuration {
 export function validateAndBuildRumConfiguration(
   initConfiguration: RumInitConfiguration,
 ): RumConfiguration | undefined {
+  if (!isTraceSampleRate(initConfiguration.tracing?.sampleRate)) {
+    return
+  }
+
   const base = validateAndBuildConfiguration(initConfiguration)
   if (!base) {
     return
@@ -78,9 +82,20 @@ export function validateAndBuildRumConfiguration(
     trackAnonymousUser: base.trackAnonymousUser,
     tracing: {
       enabled: initConfiguration.tracing?.enabled ?? false,
-      sampleRate: initConfiguration.tracing?.sampleRate ?? 1.0,
+      sampleRate: initConfiguration.tracing?.sampleRate ?? 100,
       rootTraceContext: initConfiguration.tracing?.rootTraceContext,
       headerName: initConfiguration.tracing?.headerName ?? 'traceparent',
     },
   }
+}
+
+function isTraceSampleRate(sampleRate: unknown): boolean {
+  if (
+    sampleRate !== undefined &&
+    (typeof sampleRate !== 'number' || Number.isNaN(sampleRate) || sampleRate < 0 || sampleRate > 100)
+  ) {
+    console.error('[FlashCat RUM][Error] Trace Sample Rate should be a number between 0 and 100')
+    return false
+  }
+  return true
 }

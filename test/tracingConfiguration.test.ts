@@ -23,7 +23,7 @@ test('tracing can be enabled', () => {
   assert.equal(result.tracing.enabled, true)
 })
 
-test('tracing sampleRate defaults to 1.0', () => {
+test('tracing sampleRate defaults to 100', () => {
   const result = validateAndBuildRumConfiguration({
     clientToken: 'token-123',
     applicationId: 'app-123',
@@ -31,18 +31,39 @@ test('tracing sampleRate defaults to 1.0', () => {
   })
 
   assert.ok(result)
-  assert.equal(result.tracing.sampleRate, 1.0)
+  assert.equal(result.tracing.sampleRate, 100)
 })
 
 test('tracing sampleRate can be customized', () => {
   const result = validateAndBuildRumConfiguration({
     clientToken: 'token-123',
     applicationId: 'app-123',
-    tracing: { enabled: true, sampleRate: 0.5 },
+    tracing: { enabled: true, sampleRate: 50 },
   })
 
   assert.ok(result)
-  assert.equal(result.tracing.sampleRate, 0.5)
+  assert.equal(result.tracing.sampleRate, 50)
+})
+
+test('tracing sampleRate rejects values outside 0-100', () => {
+  const originalError = console.error
+  const errors: unknown[] = []
+  console.error = (...args: unknown[]) => {
+    errors.push(args[0])
+  }
+
+  try {
+    const result = validateAndBuildRumConfiguration({
+      clientToken: 'token-123',
+      applicationId: 'app-123',
+      tracing: { enabled: true, sampleRate: 200 },
+    })
+
+    assert.equal(result, undefined)
+    assert.deepEqual(errors, ['[FlashCat RUM][Error] Trace Sample Rate should be a number between 0 and 100'])
+  } finally {
+    console.error = originalError
+  }
 })
 
 test('tracing headerName defaults to traceparent', () => {

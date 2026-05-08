@@ -85,3 +85,50 @@ test('startRum does not emit view events when trackPages is false', () => {
     ;(globalThis as any).Page = originalPage
   }
 })
+
+test('startRum does not emit RUM events when session is sampled out', () => {
+  const originalWx = (globalThis as any).wx
+  const originalPage = (globalThis as any).Page
+  ;(globalThis as any).wx = {
+    request: (options: RequestOptions) => {
+      options.success?.({ statusCode: 200, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    uploadFile: (options: any) => {
+      options.success?.({ statusCode: 200, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    downloadFile: (options: any) => {
+      options.success?.({ statusCode: 200, tempFilePath: '/tmp/file' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    getPerformance: () => undefined,
+  }
+  ;(globalThis as any).Page = (options: Record<string, any>) => options
+
+  try {
+    const configuration = validateAndBuildRumConfiguration({
+      clientToken: 'token',
+      applicationId: 'app',
+      sessionSampleRate: 0,
+      trackPages: false,
+      trackActions: false,
+      trackPerformance: false,
+      flushInterval: 100000,
+    })!
+    const started = startRum(configuration, createAdapter())
+    const collected: any[] = []
+    started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+    started.addCustomEvent('sampled-out-event')
+
+    started.stop()
+    assert.equal(collected.length, 0)
+  } finally {
+    ;(globalThis as any).wx = originalWx
+    ;(globalThis as any).Page = originalPage
+  }
+})

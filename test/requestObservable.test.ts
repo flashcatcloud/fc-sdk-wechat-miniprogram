@@ -407,6 +407,44 @@ test('requestObservable tracks direct wx.downloadFile calls', () => {
   }
 })
 
+test('requestObservable treats tracing sampleRate as a 0-100 percentage', () => {
+  const originalWx = (globalThis as any).wx
+  const originalRandom = Math.random
+  let capturedOptions: RequestOptions | undefined
+  ;(globalThis as any).wx = {
+    request: (options: RequestOptions) => {
+      capturedOptions = options
+      options.success?.({ statusCode: 200, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    uploadFile: (options: any) => {
+      options.success?.({ statusCode: 200, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    downloadFile: (options: any) => {
+      options.success?.({ statusCode: 200, tempFilePath: '/tmp/file' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+  }
+  Math.random = () => 0.75
+
+  try {
+    const adapter = createAdapter()
+    const { stop } = initRequestObservable(adapter, { enabled: true, sampleRate: 50 })
+
+    adapter.request({ url: 'https://api.example.com/data' })
+
+    stop()
+    assert.equal(capturedOptions?.header?.traceparent, undefined)
+  } finally {
+    Math.random = originalRandom
+    ;(globalThis as any).wx = originalWx
+  }
+})
+
 test('requestObservable stop restores original wx.request', () => {
   const originalWx = (globalThis as any).wx
   mockWx()
