@@ -18,6 +18,7 @@ import type { PageCollection } from '../domain/page/pageCollection'
 const noopPageCollection: PageCollection = {
   stop: () => undefined,
   getCurrentPage: () => undefined,
+  findPage: () => undefined,
   startManualPage: () => undefined,
 }
 
@@ -57,7 +58,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   })
 
   const pageCollection = configuration.trackPages
-    ? startPageCollection(lifeCycle, pageObservable, configuration)
+    ? startPageCollection(lifeCycle, pageObservable, configuration, appObservable)
     : noopPageCollection
   const requestCollection = configuration.trackRequests
     ? startRequestCollection(lifeCycle, requestObservable)
@@ -93,6 +94,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     globalContext,
     userContext,
     getCurrentPage: pageCollection.getCurrentPage,
+    findPage: pageCollection.findPage,
     adapter,
   })
 

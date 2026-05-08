@@ -1,6 +1,6 @@
 import type { Observable } from '@flashcatcloud/miniprogram-core'
-import type { PageEvent } from '@flashcatcloud/miniprogram-platform'
-import { generateUUID, toServerDuration } from '@flashcatcloud/miniprogram-core'
+import type { AppEvent, PageEvent } from '@flashcatcloud/miniprogram-platform'
+import { createValueHistory, generateUUID, toServerDuration } from '@flashcatcloud/miniprogram-core'
 import { LifeCycleEventType } from '../lifeCycle'
 import type { LifeCycle } from '../lifeCycle'
 import type { PageHistoryEntry } from '../contexts/pageHistory'
@@ -12,24 +12,43 @@ import type { RumConfiguration } from '../configuration/configuration'
 export interface PageCollection {
   stop: () => void
   getCurrentPage: () => PageHistoryEntry | undefined
+  findPage: (time: number) => PageHistoryEntry | undefined
   startManualPage: (name: string) => void
 }
 
 const PAGE_UPDATE_INTERVAL = 3000
+const PAGE_HISTORY_EXPIRE_DELAY = 4 * 60 * 60 * 1000
+const PAGE_HISTORY_MAX_ENTRIES = 1024
 export function startPageCollection(
   lifeCycle: LifeCycle,
   pageObservable: Observable<PageEvent>,
   configuration: RumConfiguration,
+  appObservable?: Observable<AppEvent>,
 ) {
   let currentPage: PageHistoryEntry | undefined
+  const pageHistory = createValueHistory<PageHistoryEntry>(() => Date.now(), {
+    expireDelay: PAGE_HISTORY_EXPIRE_DELAY,
+    maxEntries: PAGE_HISTORY_MAX_ENTRIES,
+  })
   const pageContextManager = new PageContextManager()
-  const eventCountsTracker = new EventCountsTracker(lifeCycle)
+  const eventCountsTracker = new EventCountsTracker(lifeCycle, (event) => pageHistory.find(event.date)?.value, (page) => {
+    if (page === currentPage && page.updateIntervalId) {
+      return
+    }
+    page.documentVersion = (page.documentVersion || 0) + 1
+    emitViewUpdate(page)
+  })
+
+  function setCurrentPage(page: PageHistoryEntry) {
+    currentPage = page
+    pageHistory.add(page, page.startTime)
+  }
 
   function buildPageEventData(
     page: PageHistoryEntry,
     overrides: Partial<RawRumViewEvent['view']> = {},
   ): RawRumViewEvent['view'] {
-    const counts = eventCountsTracker.getCounts()
+    const counts = eventCountsTracker.getCounts(page.id)
     return {
       id: page.id,
       url: page.name,
@@ -139,7 +158,7 @@ export function startPageCollection(
         return
       }
       mergeViewMetrics(page, {
-        time_spent: toServerDuration(Date.now() - page.startTime),
+        time_spent: toServerDuration(getForegroundDuration(page)),
       })
       page.documentVersion = (page.documentVersion || 0) + 1
       emitViewUpdate(page)
@@ -157,10 +176,61 @@ export function startPageCollection(
     if (!page.pageStates) {
       page.pageStates = []
     }
+    if (page.pageStates[page.pageStates.length - 1]?.state === state) {
+      return
+    }
     page.pageStates.push({
       state,
       start: toServerDuration(time - page.startTime),
     })
+  }
+
+  function getForegroundDuration(page: PageHistoryEntry, time = Date.now()) {
+    return (page.foregroundDuration ?? 0) + (page.foregroundStartTime !== undefined ? time - page.foregroundStartTime : 0)
+  }
+
+  function pauseForeground(page: PageHistoryEntry, time: number) {
+    if (page.foregroundStartTime === undefined) {
+      return
+    }
+    page.foregroundDuration = (page.foregroundDuration ?? 0) + time - page.foregroundStartTime
+    page.foregroundStartTime = undefined
+  }
+
+  function resumeForeground(page: PageHistoryEntry, time: number) {
+    if (page.foregroundStartTime === undefined) {
+      page.foregroundStartTime = time
+    }
+  }
+
+  function emitPageHidden(page: PageHistoryEntry, time: number, state: 'hidden' | 'terminated') {
+    if (state === 'hidden' && page.foregroundStartTime === undefined) {
+      return
+    }
+    stopPageUpdate(page)
+    pauseForeground(page, time)
+    addPageState(page, state, time)
+    mergeViewMetrics(page, {
+      time_spent: toServerDuration(getForegroundDuration(page, time)),
+      is_active: false,
+    })
+    page.documentVersion = (page.documentVersion || 0) + 1
+    emitViewUpdate(page)
+  }
+
+  function emitPageShown(page: PageHistoryEntry, time: number) {
+    if (page.updateIntervalId || page.foregroundStartTime !== undefined) {
+      return
+    }
+    addPageState(page, 'active', time)
+    mergeViewMetrics(page, {
+      time_spent: toServerDuration(getForegroundDuration(page, time)),
+      is_active: true,
+    })
+    page.documentVersion = (page.documentVersion || 0) + 1
+    emitViewUpdate(page)
+    resumeForeground(page, time)
+    page.updateIntervalId = schedulePageUpdate(page)
   }
 
   const performanceSubscription = lifeCycle.subscribe(
@@ -214,29 +284,34 @@ export function startPageCollection(
     if (!currentPage || session.created <= currentPage.startTime) {
       return
     }
-    stopPageUpdate(currentPage)
-    eventCountsTracker.reset()
+    const previousPage = currentPage
+    stopPageUpdate(previousPage)
 
-    currentPage = {
+    const renewedPage: PageHistoryEntry = {
       id: generateUUID(),
-      name: currentPage.name,
+      name: previousPage.name,
       startTime: session.created,
-      referrer: currentPage.referrer,
-      loadingType: currentPage.loadingType,
+      referrer: previousPage.referrer,
+      loadingType: previousPage.loadingType,
       documentVersion: 0,
+      foregroundStartTime: session.created,
+      foregroundDuration: 0,
     }
+    setCurrentPage(renewedPage)
 
-    emitViewUpdate(currentPage)
-    currentPage.updateIntervalId = schedulePageUpdate(currentPage)
+    if (session.created - previousPage.startTime < PAGE_HISTORY_EXPIRE_DELAY) {
+      emitPageHidden(previousPage, session.created, 'terminated')
+    }
+    emitViewUpdate(renewedPage)
+    renewedPage.updateIntervalId = schedulePageUpdate(renewedPage)
   })
 
   const pageSubscription = pageObservable.subscribe((event) => {
     if (event.lifecycle === 'load') {
       stopPageUpdate(currentPage)
-      eventCountsTracker.reset()
       pageContextManager.resetIfNeeded()
 
-      currentPage = {
+      const loadPage: PageHistoryEntry = {
         id: generateUUID(),
         name: event.route || 'unknown',
         startTime: event.time,
@@ -244,12 +319,14 @@ export function startPageCollection(
         referrer: pageContextManager.getReferrer(),
         loadingType: pageContextManager.getLoadingType(),
         documentVersion: 0,
+        foregroundStartTime: event.time,
+        foregroundDuration: 0,
       }
+      setCurrentPage(loadPage)
 
-      const loadPage = currentPage
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       emitViewUpdate(loadPage)
-      currentPage.updateIntervalId = schedulePageUpdate(loadPage)
+      loadPage.updateIntervalId = schedulePageUpdate(loadPage)
       return
     }
 
@@ -277,10 +354,9 @@ export function startPageCollection(
 
     if (event.lifecycle === 'show' && !currentPage) {
       stopPageUpdate(currentPage)
-      eventCountsTracker.reset()
       pageContextManager.resetIfNeeded()
 
-      currentPage = {
+      const showPage: PageHistoryEntry = {
         id: generateUUID(),
         name: event.route || 'unknown',
         startTime: event.time,
@@ -288,48 +364,44 @@ export function startPageCollection(
         referrer: pageContextManager.getReferrer(),
         loadingType: pageContextManager.getLoadingType(),
         documentVersion: 0,
+        foregroundStartTime: event.time,
+        foregroundDuration: 0,
       }
+      setCurrentPage(showPage)
 
-      const showPage = currentPage
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       emitViewUpdate(showPage)
-      currentPage.updateIntervalId = schedulePageUpdate(showPage)
+      showPage.updateIntervalId = schedulePageUpdate(showPage)
       return
     }
 
     if (event.lifecycle === 'show' && currentPage && !currentPage.updateIntervalId) {
-      addPageState(currentPage, 'active', event.time)
-      mergeViewMetrics(currentPage, {
-        time_spent: toServerDuration(event.time - currentPage.startTime),
-      })
-      currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
-      emitViewUpdate(currentPage)
-      currentPage.updateIntervalId = schedulePageUpdate(currentPage)
+      emitPageShown(currentPage, event.time)
       return
     }
 
     if (event.lifecycle === 'hide' && currentPage) {
-      stopPageUpdate(currentPage)
-      addPageState(currentPage, 'hidden', event.time)
-      mergeViewMetrics(currentPage, {
-        time_spent: toServerDuration(event.time - currentPage.startTime),
-        is_active: false,
-      })
-      currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
-      emitViewUpdate(currentPage)
+      emitPageHidden(currentPage, event.time, 'hidden')
       return
     }
 
     if (event.lifecycle === 'unload' && currentPage) {
-      stopPageUpdate(currentPage)
-      addPageState(currentPage, 'terminated', event.time)
-      mergeViewMetrics(currentPage, {
-        time_spent: toServerDuration(event.time - currentPage.startTime),
-        is_active: false,
-      })
-      currentPage.documentVersion = (currentPage.documentVersion || 0) + 1
-      emitViewUpdate(currentPage)
+      emitPageHidden(currentPage, event.time, 'terminated')
+      pageHistory.closeActive(event.time)
       currentPage = undefined
+    }
+  })
+
+  const appSubscription = appObservable?.subscribe((event) => {
+    if (!currentPage) {
+      return
+    }
+    if (event.lifecycle === 'hide') {
+      emitPageHidden(currentPage, event.time, 'hidden')
+      return
+    }
+    if (event.lifecycle === 'show' && !currentPage.updateIntervalId) {
+      emitPageShown(currentPage, event.time)
     }
   })
 
@@ -342,25 +414,34 @@ export function startPageCollection(
       setDataSubscription.unsubscribe()
       sessionRenewedSubscription.unsubscribe()
       pageSubscription.unsubscribe()
+      appSubscription?.unsubscribe()
+      pageHistory.stop()
     },
     getCurrentPage: () => currentPage,
+    findPage: (time: number) => pageHistory.find(time)?.value,
     startManualPage: (name: string) => {
-      stopPageUpdate(currentPage)
-      eventCountsTracker.reset()
+      const startTime = Date.now()
+      const previousPage = currentPage
+      stopPageUpdate(previousPage)
       pageContextManager.resetIfNeeded()
 
-      currentPage = {
+      const manualPage: PageHistoryEntry = {
         id: generateUUID(),
         name,
-        startTime: Date.now(),
+        startTime,
         referrer: pageContextManager.getReferrer(),
         loadingType: pageContextManager.getLoadingType(),
         documentVersion: 0,
+        foregroundStartTime: startTime,
+        foregroundDuration: 0,
       }
+      setCurrentPage(manualPage)
 
-      const manualPage = currentPage
+      if (previousPage) {
+        emitPageHidden(previousPage, startTime, 'terminated')
+      }
       emitViewUpdate(manualPage)
-      currentPage.updateIntervalId = schedulePageUpdate(manualPage)
+      manualPage.updateIntervalId = schedulePageUpdate(manualPage)
     },
   }
 }

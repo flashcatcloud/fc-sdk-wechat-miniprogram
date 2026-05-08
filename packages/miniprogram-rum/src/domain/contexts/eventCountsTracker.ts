@@ -1,5 +1,7 @@
 import type { LifeCycle } from '../lifeCycle'
 import { LifeCycleEventType } from '../lifeCycle'
+import type { RawRumEvent } from '../../rawRumEvent.types'
+import type { PageHistoryEntry } from './pageHistory'
 
 export interface EventCounts {
   actionCount: number
@@ -8,36 +10,63 @@ export interface EventCounts {
 }
 
 export class EventCountsTracker {
-  private counts: EventCounts = {
-    actionCount: 0,
-    errorCount: 0,
-    resourceCount: 0,
-  }
+  private countsByPageId = new Map<string, EventCounts>()
 
   private subscription: { unsubscribe: () => void }
 
-  constructor(lifeCycle: LifeCycle) {
+  constructor(
+    lifeCycle: LifeCycle,
+    private findPage: (event: RawRumEvent) => PageHistoryEntry | undefined,
+    private onCountChanged?: (page: PageHistoryEntry) => void,
+  ) {
     this.subscription = lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (event) => {
+      if (event.type === 'view') {
+        return
+      }
+      const page = this.findPage(event)
+      if (!page) {
+        return
+      }
+      const counts = this.getOrCreateCounts(page.id)
+      let changed = false
       switch (event.type) {
         case 'action':
-          this.counts.actionCount += 1
+          counts.actionCount += 1
+          changed = true
           break
         case 'error':
-          this.counts.errorCount += 1
+          counts.errorCount += 1
+          changed = true
           break
         case 'resource':
-          this.counts.resourceCount += 1
+          counts.resourceCount += 1
+          changed = true
           break
+      }
+      if (changed) {
+        this.onCountChanged?.(page)
       }
     })
   }
 
-  getCounts(): EventCounts {
-    return { ...this.counts }
+  getCounts(pageId?: string): EventCounts {
+    if (!pageId) {
+      return this.createEmptyCounts()
+    }
+    return { ...this.getOrCreateCounts(pageId) }
   }
 
-  reset() {
-    this.counts = {
+  private getOrCreateCounts(pageId: string): EventCounts {
+    let counts = this.countsByPageId.get(pageId)
+    if (!counts) {
+      counts = this.createEmptyCounts()
+      this.countsByPageId.set(pageId, counts)
+    }
+    return counts
+  }
+
+  private createEmptyCounts(): EventCounts {
+    return {
       actionCount: 0,
       errorCount: 0,
       resourceCount: 0,

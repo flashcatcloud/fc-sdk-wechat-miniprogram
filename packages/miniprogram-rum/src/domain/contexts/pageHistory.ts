@@ -12,4 +12,6 @@ export interface PageHistoryEntry {
   updateIntervalId?: ReturnType<typeof setInterval>
   pageStates?: PageStateServerEntry[]
   metrics?: Partial<RawRumViewEvent['view']>
+  foregroundStartTime?: number
+  foregroundDuration?: number
 }
