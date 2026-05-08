@@ -63,3 +63,30 @@ jobs:
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  notify-success:
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare notification
+        run: |
+          COMMIT_MESSAGE=$(git log -1 --pretty=%s)
+          echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_ENV
+
+      - name: Notify publish success
+        uses: zcong1993/actions-ding@master
+        with:
+          dingToken: ${{ secrets.DING_TALK_TOKEN }}
+          secret: ${{ secrets.DING_TALK_SECRET }}
+          body: |
+            {
+              "msgtype": "markdown",
+              "markdown": {
+                "title": "小程序 SDK NPM 发布通知",
+                "text": "### ✅ 小程序 SDK NPM 发布成功\n\n---\n\n 🔖 分支/标签: ${{ github.ref }}\n\n 📝 提交信息: [${{ env.COMMIT_MESSAGE }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})\n\n 👨‍💻 触发人: ${{ github.actor }}\n\n 🚀 [查看发布详情](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+              }
+            }
