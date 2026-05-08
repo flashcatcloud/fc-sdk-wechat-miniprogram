@@ -25,17 +25,17 @@ jobs:
       - name: Validate manual publish branch
         if: github.event_name == 'workflow_dispatch'
         run: |
-          if [[ "${GITHUB_REF_NAME}" != "Publish" ]]; then
-            echo "Manual publish must run from the Publish branch. Current ref: ${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF_NAME}" != "publish" ]]; then
+            echo "Manual publish must run from the publish branch. Current ref: ${GITHUB_REF_NAME}"
             exit 1
           fi
 
       - name: Validate tag publish branch
         if: github.event_name == 'push' && github.ref_type == 'tag'
         run: |
-          git fetch origin Publish:refs/remotes/origin/Publish
-          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/Publish; then
-            echo "Tag publish must point to a commit already contained in the Publish branch."
+          git fetch origin publish:refs/remotes/origin/publish
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/publish; then
+            echo "Tag publish must point to a commit already contained in the publish branch."
             exit 1
           fi
 

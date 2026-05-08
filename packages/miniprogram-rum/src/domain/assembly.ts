@@ -79,6 +79,7 @@ export function startRumAssembly({
   globalContext,
   userContext,
   getCurrentPage,
+  findPage,
   adapter,
 }: {
   lifeCycle: LifeCycle
@@ -87,6 +88,7 @@ export function startRumAssembly({
   globalContext: ContextManager
   userContext: ContextManager
   getCurrentPage: () => PageHistoryEntry | undefined
+  findPage?: (time: number) => PageHistoryEntry | undefined
   adapter: PlatformAdapter
 }) {
   const eventRateLimiters = new Map<RumEventType, EventRateLimiter>()
@@ -116,7 +118,13 @@ export function startRumAssembly({
       return
     }
 
-    let session = sessionManager.findTrackedSession()
+    const eventTime = rawEvent.date
+    const currentPage = getCurrentPage()
+    const rawView = 'view' in rawEvent ? (rawEvent as Record<string, any>).view : undefined
+    // Current view events keep the existing renewal boundary behavior: a missing current session creates a new view.
+    // Historical view updates and non-view events use event time so delayed work stays aligned with its original context.
+    const shouldUseEventTimeForSession = rawEvent.type !== 'view' || (rawView?.id && rawView.id !== currentPage?.id)
+    let session = sessionManager.findTrackedSession(shouldUseEventTimeForSession ? eventTime : undefined)
     if (!session) {
       session = sessionManager.renew()
       lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
@@ -125,8 +133,7 @@ export function startRumAssembly({
       }
     }
     sessionManager.expand()
-    const page = getCurrentPage()
-    const rawView = 'view' in rawEvent ? (rawEvent as Record<string, any>).view : undefined
+    const page = findPage?.(eventTime) || currentPage
     const pageName = page?.name || 'unknown'
     const usr = userContext.getContext()
     if (session.anonymousId && !usr.anonymous_id && configuration.trackAnonymousUser) {

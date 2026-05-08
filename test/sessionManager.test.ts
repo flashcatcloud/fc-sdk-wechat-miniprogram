@@ -118,6 +118,41 @@ test('sessionManager expand updates expiration with throttle', () => {
   }
 })
 
+test('sessionManager historical lookup is not affected by later session object mutation', () => {
+  const originalNow = Date.now
+  Date.now = () => 1_000
+  const store = createMockStore()
+  const manager = startSessionManager(store)
+
+  try {
+    const session = manager.renew()
+    session.expireAt = 60 * 60 * 1000
+
+    assert.equal(manager.findTrackedSession(20 * 60 * 1000), undefined)
+  } finally {
+    Date.now = originalNow
+  }
+})
+
+test('sessionManager historical lookup uses expanded expiration after session expansion', () => {
+  const originalNow = Date.now
+  Date.now = () => 1_000
+  const store = createMockStore()
+  const manager = startSessionManager(store)
+
+  try {
+    const session = manager.renew()
+
+    Date.now = () => 62_000
+    manager.expand()
+
+    const found = manager.findTrackedSession(920_000)
+    assert.equal(found?.id, session.id)
+  } finally {
+    Date.now = originalNow
+  }
+})
+
 test('sessionManager hard timeout', () => {
   const store = createMockStore()
   const manager = startSessionManager(store)

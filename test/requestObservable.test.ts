@@ -5,15 +5,76 @@ import { createHttpRequest } from '../packages/miniprogram-platform/src/transpor
 import type { PlatformAdapter, RequestOptions, UploadFileOptions, DownloadFileOptions } from '../packages/miniprogram-platform/src/platform/types'
 
 function createAdapter(): PlatformAdapter {
+  let requestDelegate = (options: RequestOptions) => (globalThis as any).wx.request(options)
+  let uploadFileDelegate = (options: UploadFileOptions) => (globalThis as any).wx.uploadFile(options)
+  let downloadFileDelegate = (options: DownloadFileOptions) => (globalThis as any).wx.downloadFile(options)
+
   return {
     request: (options: RequestOptions) => {
-      return (globalThis as any).wx.request(options)
+      return requestDelegate(options)
     },
     uploadFile: (options: UploadFileOptions) => {
-      return (globalThis as any).wx.uploadFile(options)
+      return uploadFileDelegate(options)
     },
     downloadFile: (options: DownloadFileOptions) => {
-      return (globalThis as any).wx.downloadFile(options)
+      return downloadFileDelegate(options)
+    },
+    patchRequest: (request) => {
+      const originalRequest = (globalThis as any).wx.request
+      requestDelegate = originalRequest
+      ;(globalThis as any).wx.request = request
+      return () => {
+        ;(globalThis as any).wx.request = originalRequest
+        requestDelegate = (options: RequestOptions) => (globalThis as any).wx.request(options)
+      }
+    },
+    patchUploadFile: (uploadFile) => {
+      const originalUploadFile = (globalThis as any).wx.uploadFile
+      uploadFileDelegate = originalUploadFile
+      ;(globalThis as any).wx.uploadFile = uploadFile
+      return () => {
+        ;(globalThis as any).wx.uploadFile = originalUploadFile
+        uploadFileDelegate = (options: UploadFileOptions) => (globalThis as any).wx.uploadFile(options)
+      }
+    },
+    patchDownloadFile: (downloadFile) => {
+      const originalDownloadFile = (globalThis as any).wx.downloadFile
+      downloadFileDelegate = originalDownloadFile
+      ;(globalThis as any).wx.downloadFile = downloadFile
+      return () => {
+        ;(globalThis as any).wx.downloadFile = originalDownloadFile
+        downloadFileDelegate = (options: DownloadFileOptions) => (globalThis as any).wx.downloadFile(options)
+      }
+    },
+    setStorageSync: () => undefined,
+    getStorageSync: () => undefined,
+    removeStorageSync: () => undefined,
+    getSystemInfoSync: () => ({}),
+    getNetworkType: ({ success }: { success: (res: any) => void }) => success({ networkType: 'wifi' }),
+    onNetworkStatusChange: () => undefined,
+    onAppShow: () => undefined,
+    onAppHide: () => undefined,
+    onError: () => undefined,
+    onUnhandledRejection: () => undefined,
+  }
+}
+
+function createStandaloneAdapter(): PlatformAdapter {
+  return {
+    request: (options: RequestOptions) => {
+      options.success?.({ statusCode: 201, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    uploadFile: (options: UploadFileOptions) => {
+      options.success?.({ statusCode: 201, data: 'ok' })
+      options.complete?.()
+      return { abort: () => undefined }
+    },
+    downloadFile: (options: DownloadFileOptions) => {
+      options.success?.({ statusCode: 201, tempFilePath: '/tmp/file' })
+      options.complete?.()
+      return { abort: () => undefined }
     },
     setStorageSync: () => undefined,
     getStorageSync: () => undefined,
@@ -47,6 +108,27 @@ function mockWx() {
     },
   }
 }
+
+test('requestObservable can collect adapter requests without global wx', () => {
+  const originalWx = (globalThis as any).wx
+  delete (globalThis as any).wx
+
+  try {
+    const adapter = createStandaloneAdapter()
+    const { observable, stop } = initRequestObservable(adapter)
+    const completed: any[] = []
+    observable.subscribe((event) => completed.push(event))
+
+    adapter.request({ url: 'https://api.example.com/data' })
+
+    stop()
+    assert.equal(completed.length, 1)
+    assert.equal(completed[0].url, 'https://api.example.com/data')
+    assert.equal(completed[0].statusCode, 201)
+  } finally {
+    ;(globalThis as any).wx = originalWx
+  }
+})
 
 test('requestObservable ignores intake requests', () => {
   const originalWx = (globalThis as any).wx
