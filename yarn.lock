@@ -146,17 +146,17 @@
   resolved "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.27.7.tgz"
   integrity sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg==
 
-"@flashcatcloud/miniprogram-core@0.1.0", "@flashcatcloud/miniprogram-core@file:/Users/fiona/workspace/flashcat/sdk/fc-sdk-wechat-miniprogram/packages/core":
+"@flashcatcloud/miniprogram-core@0.1.0", "@flashcatcloud/miniprogram-core@file:packages/core":
   version "0.1.0"
   resolved "file:packages/core"
 
-"@flashcatcloud/miniprogram-platform@0.1.0", "@flashcatcloud/miniprogram-platform@file:/Users/fiona/workspace/flashcat/sdk/fc-sdk-wechat-miniprogram/packages/miniprogram-platform":
+"@flashcatcloud/miniprogram-platform@0.1.0", "@flashcatcloud/miniprogram-platform@file:packages/miniprogram-platform":
   version "0.1.0"
   resolved "file:packages/miniprogram-platform"
   dependencies:
     "@flashcatcloud/miniprogram-core" "0.1.0"
 
-"@flashcatcloud/miniprogram-rum@file:/Users/fiona/workspace/flashcat/sdk/fc-sdk-wechat-miniprogram/packages/miniprogram-rum":
+"@flashcatcloud/miniprogram-rum@file:packages/miniprogram-rum":
   version "0.1.0"
   resolved "file:packages/miniprogram-rum"
   dependencies:
