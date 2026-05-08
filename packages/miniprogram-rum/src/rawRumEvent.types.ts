@@ -1,6 +1,6 @@
 export type RumEventType = 'view' | 'resource' | 'error' | 'action' | 'custom'
 
-export type ResourceType = 'xhr' | 'upload' | 'download'
+export type ResourceType = 'xhr' | 'js' | 'css' | 'image' | 'font' | 'media' | 'other'
 
 export interface RawRumEventBase {
   date: number
