@@ -37,6 +37,8 @@ function createAdapter(): PlatformAdapter {
     onAppHide: () => undefined,
     onError: () => undefined,
     onUnhandledRejection: () => undefined,
+    onPageNotFound: () => undefined,
+    onLazyLoadError: () => undefined,
   }
 }
 
