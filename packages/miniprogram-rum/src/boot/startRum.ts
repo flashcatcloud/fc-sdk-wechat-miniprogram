@@ -13,6 +13,7 @@ import { startUserContext } from '../domain/contexts/userContext'
 import { startRumAssembly } from '../domain/assembly'
 import { startRumBatch } from '../transport/startRumBatch'
 import { LifeCycleEventType } from '../domain/lifeCycle'
+import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { PageCollection } from '../domain/page/pageCollection'
 
 const noopPageCollection: PageCollection = {
@@ -153,7 +154,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
       lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
         date: time,
         type: 'custom',
-        event: { name, context },
+        event: { id: generateUUID(), name, context },
       })
     },
     addTiming: (name: string, time?: number) => {

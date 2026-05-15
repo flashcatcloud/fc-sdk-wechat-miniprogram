@@ -1,3 +1,4 @@
+import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { ErrorSource } from '../../rawRumEvent.types'
 import type { LifeCycle } from '../lifeCycle'
 import { LifeCycleEventType } from '../lifeCycle'
@@ -36,6 +37,7 @@ export function startErrorCollection(lifeCycle: LifeCycle) {
       date: Date.now(),
       type: 'error',
       error: {
+        id: generateUUID(),
         message,
         stack,
         source,

@@ -1,7 +1,7 @@
 import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 import type { ContextManager, SessionManager } from '@flashcatcloud/miniprogram-core'
 import type { EventRateLimiter } from '@flashcatcloud/miniprogram-core'
-import { createEventRateLimiter } from '@flashcatcloud/miniprogram-core'
+import { createEventRateLimiter, generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { LifeCycle } from './lifeCycle'
 import { LifeCycleEventType } from './lifeCycle'
 import type { RawRumEvent, RumEventType } from '../rawRumEvent.types'
@@ -102,6 +102,7 @@ export function startRumAssembly({
           date: Date.now(),
           type: 'error',
           error: {
+            id: generateUUID(),
             message: error.message,
             source: 'custom',
           },
