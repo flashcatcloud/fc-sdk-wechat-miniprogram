@@ -90,6 +90,7 @@ export interface RawRumResourceEvent extends RawRumEventBase {
 export interface RawRumErrorEvent extends RawRumEventBase {
   type: 'error'
   error: {
+    id: string
     message: string
     stack?: string
     source: ErrorSource
@@ -123,6 +124,7 @@ export interface RawRumActionEvent extends RawRumEventBase {
 export interface RawRumCustomEvent extends RawRumEventBase {
   type: 'custom'
   event: {
+    id: string
     name: string
     context?: Record<string, unknown>
   }
