@@ -2,6 +2,8 @@ export type RumEventType = 'view' | 'resource' | 'error' | 'action' | 'custom'
 
 export type ResourceType = 'xhr' | 'js' | 'css' | 'image' | 'font' | 'media' | 'other'
 
+export type ErrorSource = 'app' | 'promise' | 'custom' | 'page-not-found' | 'lazy-load' | 'network'
+
 export interface RawRumEventBase {
   date: number
   type: RumEventType
@@ -90,7 +92,7 @@ export interface RawRumErrorEvent extends RawRumEventBase {
   error: {
     message: string
     stack?: string
-    source: 'app' | 'promise' | 'custom'
+    source: ErrorSource
     fingerprint?: string
   }
 }

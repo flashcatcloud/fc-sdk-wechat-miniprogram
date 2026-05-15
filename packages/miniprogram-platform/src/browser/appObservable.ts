@@ -18,10 +18,26 @@ export interface AppUnhandledRejectionEvent {
   time: number
 }
 
+export interface AppPageNotFoundEvent {
+  path: string
+  query?: Record<string, string>
+  isEntryPage?: boolean
+  time: number
+}
+
+export interface AppLazyLoadErrorEvent {
+  type: string
+  subpackage?: Array<{ name?: string; root?: string; pages?: string[] }>
+  errMsg?: string
+  time: number
+}
+
 export function initAppObservable(adapter: PlatformAdapter) {
   const appObservable = new Observable<AppEvent>()
   const errorObservable = new Observable<AppErrorEvent>()
   const unhandledRejectionObservable = new Observable<AppUnhandledRejectionEvent>()
+  const pageNotFoundObservable = new Observable<AppPageNotFoundEvent>()
+  const lazyLoadErrorObservable = new Observable<AppLazyLoadErrorEvent>()
 
   adapter.onAppShow(() => appObservable.notify({ lifecycle: 'show', time: Date.now() }))
   adapter.onAppHide(() => appObservable.notify({ lifecycle: 'hide', time: Date.now() }))
@@ -32,15 +48,35 @@ export function initAppObservable(adapter: PlatformAdapter) {
       time: Date.now(),
     }),
   )
+  adapter.onPageNotFound((res) =>
+    pageNotFoundObservable.notify({
+      path: res.path,
+      query: res.query,
+      isEntryPage: res.isEntryPage,
+      time: Date.now(),
+    }),
+  )
+  adapter.onLazyLoadError((res) =>
+    lazyLoadErrorObservable.notify({
+      type: res.type,
+      subpackage: res.subpackage,
+      errMsg: res.errMsg,
+      time: Date.now(),
+    }),
+  )
 
   return {
     appObservable,
     errorObservable,
     unhandledRejectionObservable,
+    pageNotFoundObservable,
+    lazyLoadErrorObservable,
     stop: () => {
       appObservable.clear()
       errorObservable.clear()
       unhandledRejectionObservable.clear()
+      pageNotFoundObservable.clear()
+      lazyLoadErrorObservable.clear()
     },
   }
 }
