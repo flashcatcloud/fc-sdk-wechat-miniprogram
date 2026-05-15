@@ -1,8 +1,10 @@
 import type {
   DownloadFileOptions,
   DownloadTask,
+  LazyLoadErrorResult,
   NetworkStatusChangeResult,
   NetworkTypeResult,
+  PageNotFoundResult,
   PlatformAdapter,
   RequestOptions,
   RequestTask,
@@ -29,7 +31,10 @@ declare const wx: {
   onAppHide: (callback: () => void) => void
   onError: (callback: (error: string) => void) => void
   onUnhandledRejection: (callback: (res: { reason: string }) => void) => void
+  onPageNotFound?: (callback: (res: PageNotFoundResult) => void) => void
+  onLazyLoadError?: (callback: (res: LazyLoadErrorResult) => void) => void
 }
+// 注：wx 全局上这两个 API 标可选，是因为低版本基础库可能没有；wechatAdapter 内部用可选链降级。
 
 let requestDelegate: ((options: RequestOptions) => RequestTask) | undefined
 let uploadFileDelegate: ((options: UploadFileOptions) => UploadTask) | undefined
@@ -76,4 +81,6 @@ export const wechatAdapter: PlatformAdapter = {
   onAppHide: (callback) => wx.onAppHide(callback),
   onError: (callback) => wx.onError(callback),
   onUnhandledRejection: (callback) => wx.onUnhandledRejection(callback),
+  onPageNotFound: (callback) => wx.onPageNotFound?.(callback),
+  onLazyLoadError: (callback) => wx.onLazyLoadError?.(callback),
 }

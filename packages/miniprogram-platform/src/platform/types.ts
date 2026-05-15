@@ -63,6 +63,18 @@ export interface NetworkStatusChangeResult {
   networkType: string
 }
 
+export interface PageNotFoundResult {
+  path: string
+  query?: Record<string, string>
+  isEntryPage?: boolean
+}
+
+export interface LazyLoadErrorResult {
+  type: string
+  subpackage?: Array<{ name?: string; root?: string; pages?: string[] }>
+  errMsg?: string
+}
+
 export interface PlatformAdapter {
   request: (options: RequestOptions) => RequestTask
   uploadFile: (options: UploadFileOptions) => UploadTask
@@ -85,4 +97,6 @@ export interface PlatformAdapter {
   onAppHide: (callback: () => void) => void
   onError: (callback: (error: string) => void) => void
   onUnhandledRejection: (callback: (res: { reason: string }) => void) => void
+  onPageNotFound: (callback: (res: PageNotFoundResult) => void) => void
+  onLazyLoadError: (callback: (res: LazyLoadErrorResult) => void) => void
 }

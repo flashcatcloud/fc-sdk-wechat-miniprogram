@@ -48,7 +48,14 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
 
   const { pageObservable, actionObservable, setDataObservable, stop: stopPageObservable } = initPageObservable()
   const { observable: requestObservable, requestStartObservable, stop: stopRequestObservable } = initRequestObservable(adapter, configuration.tracing)
-  const { appObservable, errorObservable, unhandledRejectionObservable, stop: stopAppObservable } = initAppObservable(adapter)
+  const {
+    appObservable,
+    errorObservable,
+    unhandledRejectionObservable,
+    pageNotFoundObservable,
+    lazyLoadErrorObservable,
+    stop: stopAppObservable,
+  } = initAppObservable(adapter)
 
   requestStartObservable.subscribe((event) => {
     lifeCycle.notify(LifeCycleEventType.REQUEST_STARTED, event)
@@ -81,6 +88,29 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
         console.log('[FlashCat RUM][Debug] Unhandled promise rejection captured', event.reason)
       }
       errorCollection.addError(event.reason, 'promise')
+    })
+    pageNotFoundObservable.subscribe((event) => {
+      if (configuration.debug) {
+        console.log('[FlashCat RUM][Debug] Page not found captured', event.path)
+      }
+      errorCollection.addError(`Page not found: ${event.path}`, 'page-not-found')
+    })
+    lazyLoadErrorObservable.subscribe((event) => {
+      if (configuration.debug) {
+        console.log('[FlashCat RUM][Debug] Lazy load error captured', event)
+      }
+      const subpackageDesc = event.subpackage?.map((p) => p.root || p.name).filter(Boolean).join(',') || ''
+      const message = `Lazy load failed (${event.type})${subpackageDesc ? `: ${subpackageDesc}` : ''}${event.errMsg ? ` - ${event.errMsg}` : ''}`
+      errorCollection.addError(message, 'lazy-load')
+    })
+    requestObservable.subscribe((event) => {
+      if (!event.errorMessage) {
+        return
+      }
+      if (configuration.debug) {
+        console.log('[FlashCat RUM][Debug] Network error captured', event.url, event.errorMessage)
+      }
+      errorCollection.addError(`${event.method} ${event.url} failed: ${event.errorMessage}`, 'network')
     })
   }
 

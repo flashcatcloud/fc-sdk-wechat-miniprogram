@@ -1,3 +1,4 @@
+import type { ErrorSource } from '../../rawRumEvent.types'
 import type { LifeCycle } from '../lifeCycle'
 import { LifeCycleEventType } from '../lifeCycle'
 
@@ -12,7 +13,7 @@ export interface AddErrorOptions {
 export function startErrorCollection(lifeCycle: LifeCycle) {
   function addError(
     error: string | ErrorWithFingerprint,
-    source: 'app' | 'promise' | 'custom',
+    source: ErrorSource,
     stackOrOptions?: string | AddErrorOptions,
   ) {
     let message: string

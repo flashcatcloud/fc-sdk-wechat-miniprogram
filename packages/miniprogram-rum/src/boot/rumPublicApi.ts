@@ -2,6 +2,7 @@ import type { Context } from '@flashcatcloud/miniprogram-core'
 import { monitor } from '@flashcatcloud/miniprogram-core'
 import { getDefaultAdapter } from '@flashcatcloud/miniprogram-platform'
 import type { RumInitConfiguration } from '../domain/configuration/configuration'
+import type { ErrorSource } from '../rawRumEvent.types'
 import { startRum } from './startRum'
 import { createPreStartStrategy } from './preStartRum'
 
@@ -9,7 +10,7 @@ export interface Strategy {
   init: (initConfiguration: RumInitConfiguration, publicApi: RumPublicApi) => void
   initConfiguration: RumInitConfiguration | undefined
   addAction: (name: string, type?: string) => void
-  addError: (message: string, source: 'app' | 'promise' | 'custom', stack?: string) => void
+  addError: (message: string, source: ErrorSource, stack?: string) => void
   addTiming: (name: string, time?: number) => void
   addCustomEvent: (name: string, context?: Record<string, unknown>) => void
   setGlobalContext: (context: Context) => void
