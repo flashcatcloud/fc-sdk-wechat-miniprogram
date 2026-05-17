@@ -6,7 +6,7 @@ import { LifeCycle, LifeCycleEventType } from '../packages/miniprogram-rum/src/d
 import { startPageCollection } from '../packages/miniprogram-rum/src/domain/page/pageCollection'
 import { startRumAssembly } from '../packages/miniprogram-rum/src/domain/assembly'
 import type { PageEvent, PlatformAdapter } from '../packages/miniprogram-platform/src'
-import type { RawRumResourceEvent } from '../packages/miniprogram-rum/src/rawRumEvent.types'
+import type { RawRumErrorEvent, RawRumResourceEvent } from '../packages/miniprogram-rum/src/rawRumEvent.types'
 import type { RumConfiguration } from '../packages/miniprogram-rum/src/domain/configuration/configuration'
 import type { RumEvent } from '../packages/miniprogram-rum/src/rumEvent.types'
 
@@ -44,15 +44,19 @@ const adapter = {
   onNetworkStatusChange: () => undefined,
 } as unknown as PlatformAdapter
 
-function setup() {
+function setup(configurationOverride: Partial<RumConfiguration> = {}) {
+  const effectiveConfiguration = {
+    ...configuration,
+    ...configurationOverride,
+  } as RumConfiguration
   const lifeCycle = new LifeCycle()
   const pageObservable = new Observable<PageEvent>()
   const sessionManager = startSessionManager(createStore())
-  const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration)
+  const pageCollection = startPageCollection(lifeCycle, pageObservable, effectiveConfiguration)
   const collected: RumEvent[] = []
   const assembly = startRumAssembly({
     lifeCycle,
-    configuration,
+    configuration: effectiveConfiguration,
     sessionManager,
     globalContext: createContextManager(),
     userContext: createContextManager(),
@@ -74,6 +78,33 @@ function setup() {
     },
   }
 }
+
+test('assembly adds configured service and version to rum events', () => {
+  const originalGetCurrentPages = (globalThis as any).getCurrentPages
+  ;(globalThis as any).getCurrentPages = () => [{ route: 'pages/a/index' }]
+  const setupResult = setup({ service: 'hello-miniprogram-app', version: '1.0.1' })
+
+  try {
+    setupResult.sessionManager.renew()
+    setupResult.lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+      date: 1_000,
+      type: 'error',
+      error: {
+        id: 'error-id',
+        message: 'boom',
+        source: 'promise',
+      },
+    } as RawRumErrorEvent)
+
+    const errorEvent = setupResult.collected.find((event) => event.type === 'error')
+    assert.ok(errorEvent)
+    assert.equal(errorEvent.service, 'hello-miniprogram-app')
+    assert.equal(errorEvent.version, '1.0.1')
+  } finally {
+    setupResult.stop()
+    ;(globalThis as any).getCurrentPages = originalGetCurrentPages
+  }
+})
 
 test('assembly assigns async resource to the page active at resource start time', () => {
   const originalNow = Date.now
