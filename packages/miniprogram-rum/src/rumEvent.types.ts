@@ -9,6 +9,8 @@ export interface Connectivity {
 }
 
 export type RumEvent = RawRumEvent & {
+  service?: string
+  version?: string
   application: {
     id: string
   }

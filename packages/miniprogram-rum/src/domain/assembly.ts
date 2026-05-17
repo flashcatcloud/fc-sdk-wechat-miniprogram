@@ -149,6 +149,8 @@ export function startRumAssembly({
 
     const rumEvent: RumEvent = {
       ...rawEvent,
+      service: configuration.service,
+      version: configuration.version,
       application: { id: configuration.applicationId },
       session: {
         id: session.id,
