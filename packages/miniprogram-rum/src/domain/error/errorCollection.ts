@@ -2,6 +2,7 @@ import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { ErrorSource } from '../../rawRumEvent.types'
 import type { LifeCycle } from '../lifeCycle'
 import { LifeCycleEventType } from '../lifeCycle'
+import { computeStackTraceFromStackString, toStackTraceString } from './stackTrace'
 
 export interface ErrorWithFingerprint extends Error {
   dd_fingerprint?: string
@@ -30,6 +31,12 @@ export function startErrorCollection(lifeCycle: LifeCycle) {
       stack = error.stack
       fingerprint =
         error.dd_fingerprint ?? (typeof stackOrOptions === 'object' ? stackOrOptions.fingerprint : undefined)
+    }
+
+    const stackTrace = computeStackTraceFromStackString(stack || message, error instanceof Error ? error.name : 'Error', message)
+    if (stackTrace) {
+      message = stackTrace.message
+      stack = toStackTraceString(stackTrace)
     }
 
     lifeCycle.notify(LifeCycleEventType.ERROR_COLLECTED, { message, stack, source })
