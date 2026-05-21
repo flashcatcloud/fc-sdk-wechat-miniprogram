@@ -134,3 +134,42 @@ test('startRum does not emit RUM events when session is sampled out', () => {
     ;(globalThis as any).Page = originalPage
   }
 })
+
+test('startRum reports traced resource events with backend-compatible _dd identifiers', () => {
+  const adapter = createAdapter()
+  let capturedRequestOptions: RequestOptions | undefined
+  adapter.request = (options: RequestOptions) => {
+    capturedRequestOptions = options
+    options.success?.({ statusCode: 200, data: 'ok' })
+    options.complete?.()
+    return { abort: () => undefined }
+  }
+
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+    tracing: { enabled: true, sampleRate: 100 },
+  })!
+  const started = startRum(configuration, adapter)
+  const collected: any[] = []
+  started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+  adapter.request({ url: 'https://api.example.com/data' })
+
+  started.stop()
+
+  const traceparent = capturedRequestOptions?.header?.traceparent
+  assert.ok(traceparent)
+  const [, traceId, spanId] = traceparent.split('-')
+  const traceIdDecimal = BigInt(`0x${traceId.slice(16)}`).toString(10)
+  const spanIdDecimal = BigInt(`0x${spanId}`).toString(10)
+  const resourceEvent = collected.find((event) => event.type === 'resource')
+  assert.ok(resourceEvent)
+  assert.equal(traceId.slice(0, 16), '0000000000000000')
+  assert.equal(resourceEvent._dd.trace_id, traceIdDecimal)
+  assert.equal(resourceEvent._dd.span_id, spanIdDecimal)
+})

@@ -38,6 +38,14 @@ export function startRequestCollection(lifeCycle: LifeCycle, requestObservable: 
     lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
       date: event.startTime,
       type: 'resource',
+      ...(event.traceId || event.spanId
+        ? {
+            _dd: {
+              trace_id: event.traceId,
+              span_id: event.spanId,
+            },
+          }
+        : {}),
       resource: {
         id: generateUUID(),
         type: mapRequestType(event.requestType, event.url),

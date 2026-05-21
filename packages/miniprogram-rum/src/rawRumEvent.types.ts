@@ -74,6 +74,10 @@ export interface RawRumViewEvent extends RawRumEventBase {
 
 export interface RawRumResourceEvent extends RawRumEventBase {
   type: 'resource'
+  _dd?: {
+    trace_id?: string
+    span_id?: string
+  }
   resource: {
     id: string
     type: ResourceType
