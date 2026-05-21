@@ -9,7 +9,7 @@
       "$ref": "rum/view-schema.json"
     },
     {
-      "$ref": "rum/request-schema.json"
+      "$ref": "rum/resource-schema.json"
     },
     {
       "$ref": "rum/error-schema.json"

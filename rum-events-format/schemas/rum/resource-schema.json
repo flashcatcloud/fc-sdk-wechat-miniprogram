@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "rum/resource-schema.json",
+  "title": "RumResourceEvent",
+  "type": "object",
+  "description": "Schema of all properties of a Resource event",
+  "allOf": [
+    {
+      "$ref": "_common-schema.json"
+    },
+    {
+      "required": ["type", "resource"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "RUM event type",
+          "const": "resource",
+          "readOnly": true
+        },
+        "_dd": {
+          "type": "object",
+          "description": "Datadog-compatible private resource properties",
+          "properties": {
+            "trace_id": {
+              "type": "string",
+              "description": "Trace identifier used to correlate the resource with backend traces",
+              "readOnly": true
+            },
+            "span_id": {
+              "type": "string",
+              "description": "Span identifier used to correlate the resource with backend traces",
+              "readOnly": true
+            }
+          },
+          "readOnly": true
+        },
+        "resource": {
+          "type": "object",
+          "description": "Resource properties",
+          "required": ["id", "type", "url", "method", "duration"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Resource identifier",
+              "readOnly": true
+            },
+            "type": {
+              "type": "string",
+              "description": "Type of the resource",
+              "enum": ["xhr", "js", "css", "image", "font", "media", "other"],
+              "readOnly": true
+            },
+            "url": {
+              "type": "string",
+              "description": "URL of the resource",
+              "readOnly": false
+            },
+            "method": {
+              "type": "string",
+              "description": "HTTP method of the resource request",
+              "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+              "readOnly": true
+            },
+            "status_code": {
+              "type": "integer",
+              "description": "HTTP status code of the response",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "duration": {
+              "type": "integer",
+              "description": "Duration of the resource in ns",
+              "minimum": 0,
+              "readOnly": true
+            },
+            "error_message": {
+              "type": "string",
+              "description": "Error message if the resource request failed",
+              "readOnly": true
+            }
+          },
+          "readOnly": true
+        }
+      }
+    }
+  ]
+}

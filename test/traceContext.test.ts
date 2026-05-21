@@ -10,22 +10,21 @@ import {
   isValidTraceContext,
 } from '../packages/core/src/domain/tracing/traceContext'
 
-test('generateTraceId returns 32 hex characters', () => {
+test('generateTraceId returns a decimal 64-bit identifier', () => {
   const traceId = generateTraceId()
-  assert.equal(traceId.length, 32)
-  assert.ok(/^[0-9a-f]{32}$/.test(traceId))
+  assert.ok(/^[1-9]\d*$/.test(traceId))
 })
 
-test('generateSpanId returns 16 hex characters', () => {
+test('generateSpanId returns a decimal 63-bit identifier', () => {
   const spanId = generateSpanId()
-  assert.equal(spanId.length, 16)
-  assert.ok(/^[0-9a-f]{16}$/.test(spanId))
+  assert.ok(/^[1-9]\d*$/.test(spanId))
+  assert.ok(BigInt(spanId) <= 0x7fffffffffffffffn)
 })
 
 test('createTraceContext creates valid sampled context', () => {
   const ctx = createTraceContext(true)
-  assert.equal(ctx.traceId.length, 32)
-  assert.equal(ctx.spanId.length, 16)
+  assert.ok(/^[1-9]\d*$/.test(ctx.traceId))
+  assert.ok(/^[1-9]\d*$/.test(ctx.spanId))
   assert.equal(ctx.traceFlags, '01')
   assert.equal(ctx.parentSpanId, undefined)
 })
@@ -51,24 +50,24 @@ test('createChildSpan inherits traceId and traceFlags', () => {
 })
 
 test('generateTraceparent creates valid W3C format', () => {
-  const ctx = createTraceContext(true)
+  const ctx = { traceId: '255', spanId: '1', traceFlags: '01' as const }
   const header = generateTraceparent(ctx)
 
   const parts = header.split('-')
   assert.equal(parts.length, 4)
   assert.equal(parts[0], '00')
-  assert.equal(parts[1], ctx.traceId)
-  assert.equal(parts[2], ctx.spanId)
+  assert.equal(parts[1], '000000000000000000000000000000ff')
+  assert.equal(parts[2], '0000000000000001')
   assert.equal(parts[3], ctx.traceFlags)
 })
 
 test('parseTraceparent parses valid header', () => {
-  const header = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
+  const header = '00-000000000000000000000000000000ff-0000000000000001-01'
   const ctx = parseTraceparent(header)
 
   assert.ok(ctx)
-  assert.equal(ctx.traceId, '0af7651916cd43dd8448eb211c80319c')
-  assert.equal(ctx.spanId, 'b7ad6b7169203331')
+  assert.equal(ctx.traceId, '255')
+  assert.equal(ctx.spanId, '1')
   assert.equal(ctx.traceFlags, '01')
 })
 
@@ -105,14 +104,14 @@ test('isValidTraceContext validates correct context', () => {
 test('isValidTraceContext rejects invalid traceId', () => {
   assert.equal(isValidTraceContext({
     traceId: 'invalid',
-    spanId: 'b7ad6b7169203331',
+    spanId: '1',
     traceFlags: '01',
   }), false)
 })
 
 test('isValidTraceContext rejects invalid spanId', () => {
   assert.equal(isValidTraceContext({
-    traceId: '0af7651916cd43dd8448eb211c80319c',
+    traceId: '255',
     spanId: 'invalid',
     traceFlags: '01',
   }), false)
