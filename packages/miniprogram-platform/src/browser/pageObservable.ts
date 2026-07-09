@@ -39,8 +39,10 @@ interface PageInstance {
 
 declare let Page: (options: Record<string, any>) => void
 
-// 只有真实的用户交互事件才算 action。组件事件（如 image 的 load/error、scroll、touchmove）
-// 也会经过页面的事件处理函数（Taro 等框架还会统一路由到单个 handler），不能计入用户行为。
+// Only genuine user interactions qualify as auto-collected actions. Component
+// events (image load/error, scroll, touchmove, ...) flow through the same page
+// handlers — frameworks like Taro even route every event through a single
+// universal handler — and must not be recorded as user behavior.
 const USER_INTERACTION_EVENT_TYPES = new Set(['tap', 'longpress', 'longtap'])
 
 export function initPageObservable() {
