@@ -45,6 +45,25 @@ declare let Page: (options: Record<string, any>) => void
 // universal handler — and must not be recorded as user behavior.
 const USER_INTERACTION_EVENT_TYPES = new Set(['tap', 'longpress', 'longtap'])
 
+// The event object carries no element text, class, or tag name (there is no DOM
+// to query), so naming relies on what integrators annotate: dataset attributes,
+// mark:name, or an element id — on the handler's element first, then on the
+// tapped element (delegated handlers). Anything beyond that stays unnamed.
+function resolveTargetName(event: any): string | undefined {
+  const nameFromDataset = (element: { dataset?: Record<string, string> } | undefined) => {
+    const dataset = element?.dataset
+    return dataset && (dataset.name || dataset.content || dataset.type)
+  }
+  return (
+    nameFromDataset(event.currentTarget) ||
+    event.mark?.name ||
+    event.currentTarget?.id ||
+    nameFromDataset(event.target) ||
+    event.target?.id ||
+    undefined
+  )
+}
+
 export function initPageObservable() {
   const pageObservable = new Observable<PageEvent>()
   const actionObservable = new Observable<UserActionEvent>()
@@ -103,12 +122,11 @@ export function initPageObservable() {
         const event = args[0]
         if (event && typeof event.type === 'string' && USER_INTERACTION_EVENT_TYPES.has(event.type)) {
           const route = this?.route || ''
-          const dataset = (event.currentTarget?.dataset || {}) as Record<string, string>
           actionObservable.notify({
             route,
             type: event.type,
             time: Date.now(),
-            targetName: dataset.name || dataset.content || dataset.type || event.currentTarget?.id,
+            targetName: resolveTargetName(event),
             x: event.detail?.x,
             y: event.detail?.y,
           })

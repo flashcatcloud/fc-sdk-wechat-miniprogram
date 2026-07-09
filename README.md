@@ -117,6 +117,23 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 
 所有这些都在 `flashcatRum.init()` 时自动完成，开发者无需编写额外代码。
 
+### Action 命名
+
+自动采集的 action（tap / longpress / longtap）按以下优先级确定名称：
+
+1. 触发元素的 `data-name`（其次 `data-content`、`data-type`）
+2. `mark:name`（微信 [mark 机制](https://developers.weixin.qq.com/miniprogram/dev/framework/view/wxml/event.html#mark)，事件冒泡路径上的标记会聚合）
+3. 元素 `id`
+4. 事件委托场景下 `event.target` 的 dataset / id
+
+都取不到时 action 名称显示为 `unknown`。小程序事件对象拿不到元素文本，建议给关键交互元素加 `data-name`：
+
+```html
+<button bindtap="handleBuy" data-name="购买按钮">购买</button>
+```
+
+业务关键动作也可以直接用 `flashcatRum.addAction('purchase_submitted')` 手动上报。
+
 ## 配置选项
 
 | 配置项              | 类型     | 必填 | 默认值                   | 说明                                                                      |

@@ -88,6 +88,55 @@ test('pageObservable falls back to currentTarget.id when dataset has no name', (
   assert.equal(actions[0].targetName, 'submit-btn')
 })
 
+test('pageObservable prefers mark.name over currentTarget.id', () => {
+  const { actions, page, cleanup } = setup({
+    handleTap() {},
+  })
+
+  page.handleTap({ type: 'tap', mark: { name: 'marked-btn' }, currentTarget: { id: 'submit-btn', dataset: {} } })
+  cleanup()
+
+  assert.equal(actions.length, 1)
+  assert.equal(actions[0].targetName, 'marked-btn')
+})
+
+test('pageObservable falls back to the event target for delegated handlers', () => {
+  const { actions, page, cleanup } = setup({
+    handleTap() {},
+  })
+
+  // Native pages often delegate: the handler sits on an ancestor without
+  // naming, while the tapped element carries the dataset or id.
+  page.handleTap({
+    type: 'tap',
+    currentTarget: { dataset: {} },
+    target: { dataset: { name: 'inner-item' } },
+  })
+  page.handleTap({
+    type: 'tap',
+    currentTarget: { dataset: {} },
+    target: { id: 'inner-id', dataset: {} },
+  })
+  cleanup()
+
+  assert.deepEqual(
+    actions.map((action) => action.targetName),
+    ['inner-item', 'inner-id'],
+  )
+})
+
+test('pageObservable leaves targetName undefined when nothing identifies the target', () => {
+  const { actions, page, cleanup } = setup({
+    handleTap() {},
+  })
+
+  page.handleTap({ type: 'tap', currentTarget: { dataset: {} } })
+  cleanup()
+
+  assert.equal(actions.length, 1)
+  assert.equal(actions[0].targetName, undefined)
+})
+
 test('pageObservable still notifies page lifecycle events', () => {
   const { pageEvents, actions, page, cleanup } = setup({
     onLoad() {},
