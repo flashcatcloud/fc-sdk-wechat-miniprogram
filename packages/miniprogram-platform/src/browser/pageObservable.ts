@@ -39,6 +39,10 @@ interface PageInstance {
 
 declare let Page: (options: Record<string, any>) => void
 
+// 只有真实的用户交互事件才算 action。组件事件（如 image 的 load/error、scroll、touchmove）
+// 也会经过页面的事件处理函数（Taro 等框架还会统一路由到单个 handler），不能计入用户行为。
+const USER_INTERACTION_EVENT_TYPES = new Set(['tap', 'longpress', 'longtap'])
+
 export function initPageObservable() {
   const pageObservable = new Observable<PageEvent>()
   const actionObservable = new Observable<UserActionEvent>()
@@ -95,14 +99,14 @@ export function initPageObservable() {
       }
       options[key] = function (...args: any[]) {
         const event = args[0]
-        if (event && typeof event.type === 'string') {
+        if (event && typeof event.type === 'string' && USER_INTERACTION_EVENT_TYPES.has(event.type)) {
           const route = this?.route || ''
           const dataset = (event.currentTarget?.dataset || {}) as Record<string, string>
           actionObservable.notify({
             route,
             type: event.type,
             time: Date.now(),
-            targetName: dataset.name || dataset.content || dataset.type,
+            targetName: dataset.name || dataset.content || dataset.type || event.currentTarget?.id,
             x: event.detail?.x,
             y: event.detail?.y,
           })
