@@ -32,6 +32,12 @@ for (const packageInfo of packages) {
   console.log(`Updated ${packageJson.name} to ${version}`)
 }
 
+// Keep the SDK_VERSION constant (reported via ddtags sdk_version) in sync.
+const sdkVersionPath = path.join(__dirname, '../../packages/core/src/domain/configuration/sdkVersion.ts')
+const sdkVersionSource = fs.readFileSync(sdkVersionPath, 'utf8')
+fs.writeFileSync(sdkVersionPath, sdkVersionSource.replace(/SDK_VERSION = '[^']*'/, `SDK_VERSION = '${version}'`))
+console.log(`Updated SDK_VERSION constant to ${version}`)
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'))
 }

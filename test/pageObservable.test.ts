@@ -45,6 +45,23 @@ test('pageObservable emits an action for tap events with dataset target name', (
   assert.equal(actions[0].y, 2)
 })
 
+test('pageObservable rounds fractional tap coordinates to integers', () => {
+  const { actions, page, cleanup } = setup({
+    handleTap() {},
+  })
+
+  // Real WeChat tap events carry fractional detail.x/y; the RUM action schema
+  // requires integer position values.
+  page.handleTap({ type: 'tap', currentTarget: { dataset: {} }, detail: { x: 123.4375, y: 267.8125 } })
+  cleanup()
+
+  assert.equal(actions.length, 1)
+  assert.equal(actions[0].x, 123)
+  assert.equal(actions[0].y, 268)
+  assert.ok(Number.isInteger(actions[0].x))
+  assert.ok(Number.isInteger(actions[0].y))
+})
+
 test('pageObservable emits actions for longpress and longtap events', () => {
   const { actions, page, cleanup } = setup({
     handlePress() {},
