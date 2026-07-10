@@ -45,6 +45,13 @@ declare let Page: (options: Record<string, any>) => void
 // universal handler — and must not be recorded as user behavior.
 const USER_INTERACTION_EVENT_TYPES = new Set(['tap', 'longpress', 'longtap'])
 
+// WeChat reports fractional tap coordinates (logical pixels), but the RUM
+// action schema types _dd.action.position.x/y as integers and the ingest
+// decoder rejects floats — round at the collection boundary.
+function toIntegerCoordinate(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : undefined
+}
+
 // The event object carries no element text, class, or tag name (there is no DOM
 // to query), so naming relies on what integrators annotate: dataset attributes,
 // mark:name, or an element id — on the handler's element first, then on the
@@ -127,8 +134,8 @@ export function initPageObservable() {
             type: event.type,
             time: Date.now(),
             targetName: resolveTargetName(event),
-            x: event.detail?.x,
-            y: event.detail?.y,
+            x: toIntegerCoordinate(event.detail?.x),
+            y: toIntegerCoordinate(event.detail?.y),
           })
         }
         return value.apply(this, args)
