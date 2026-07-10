@@ -1,6 +1,6 @@
 {
   "name": "@flashcatcloud/miniprogram-platform",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "miniprogram": "dist",
@@ -14,6 +14,6 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@flashcatcloud/miniprogram-core": "0.1.6"
+    "@flashcatcloud/miniprogram-core": "0.1.7"
   }
 }
