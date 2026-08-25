@@ -15,6 +15,7 @@ import { startRumBatch } from '../transport/startRumBatch'
 import { LifeCycleEventType } from '../domain/lifeCycle'
 import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { PageCollection } from '../domain/page/pageCollection'
+import { createRemoteConfigurationController } from '../domain/configuration/remoteConfiguration'
 
 const noopPageCollection: PageCollection = {
   stop: () => undefined,
@@ -26,8 +27,13 @@ const noopPageCollection: PageCollection = {
 export function startRum(configuration: RumConfiguration, adapter: PlatformAdapter) {
   const lifeCycle = new LifeCycle()
 
-  const sessionManager = startRumSessionManager(adapter, configuration)
-  if (!sessionManager.findTrackedSession()) {
+  const remoteConfigurationController = createRemoteConfigurationController(adapter, configuration)
+  const sessionManager = startRumSessionManager(
+    adapter,
+    configuration,
+    remoteConfigurationController.getSessionConfiguration,
+  )
+  if (!sessionManager.findSession()) {
     sessionManager.renew()
   }
 
@@ -131,6 +137,11 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
 
   const rumBatch = startRumBatch(configuration, lifeCycle, adapter, appObservable)
 
+  // Fetch on the next microtask so public initialization can complete first.
+  // The request is marked as internal and never blocks event collection.
+  const appliedVersion = sessionManager.findSession()?.rcVersion
+  void Promise.resolve().then(() => remoteConfigurationController.fetch(appliedVersion))
+
   return {
     lifeCycle,
     sessionManager,
@@ -170,6 +181,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
       stopRequestObservable()
       rumBatch.stop()
       rumAssembly.stop()
+      remoteConfigurationController.stop()
       requestCollection?.stop()
       actionCollection?.stop()
       performanceCollection?.stop()

@@ -13,6 +13,10 @@ export interface SessionState {
   expireAt: number
   anonymousId?: string
   isTracked?: boolean
+  /** The sampling rate used for this session's single draw. */
+  sessionSampleRate?: number
+  /** The remote configuration version applied when this session was created. */
+  rcVersion?: number
 }
 
 export interface SessionStore {
@@ -22,6 +26,7 @@ export interface SessionStore {
 }
 
 export interface SessionManager {
+  findSession: (time?: number) => SessionState | undefined
   findTrackedSession: (time?: number) => SessionState | undefined
   renew: () => SessionState
   expand: () => void
@@ -30,7 +35,15 @@ export interface SessionManager {
 
 export function startSessionManager(
   store: SessionStore,
-  { trackAnonymousUser = true, sessionSampleRate = 100 }: { trackAnonymousUser?: boolean; sessionSampleRate?: number } = {},
+  {
+    trackAnonymousUser = true,
+    sessionSampleRate = 100,
+    getSessionConfiguration,
+  }: {
+    trackAnonymousUser?: boolean
+    sessionSampleRate?: number
+    getSessionConfiguration?: () => { sessionSampleRate: number; rcVersion: number }
+  } = {},
 ): SessionManager {
   let lastExpand = 0
   const sessionHistory = createValueHistory<SessionState>(() => now(), {
@@ -40,6 +53,24 @@ export function startSessionManager(
   const initialSession = store.get()
 
   if (initialSession) {
+    let wasMigrated = false
+    // Sessions written by older SDK versions did not persist these fields. Lock
+    // them to the init value so an SDK upgrade cannot change an active draw.
+    if (initialSession.sessionSampleRate === undefined) {
+      initialSession.sessionSampleRate = sessionSampleRate
+      wasMigrated = true
+    }
+    if (initialSession.rcVersion === undefined) {
+      initialSession.rcVersion = 0
+      wasMigrated = true
+    }
+    if (wasMigrated) {
+      try {
+        store.set(initialSession)
+      } catch {
+        // A storage failure must not prevent the in-memory session from being used.
+      }
+    }
     sessionHistory.add(cloneSessionState(initialSession), initialSession.created)
   }
 
@@ -49,29 +80,45 @@ export function startSessionManager(
 
   function createSession(): SessionState {
     const time = now()
+    let currentConfiguration = { sessionSampleRate, rcVersion: 0 }
+    if (getSessionConfiguration) {
+      try {
+        currentConfiguration = getSessionConfiguration()
+      } catch {
+        // Keep initialization values when a dynamic provider fails.
+      }
+    }
     return {
       id: generateUUID(),
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
-      isTracked: performDraw(sessionSampleRate),
+      isTracked: performDraw(currentConfiguration.sessionSampleRate),
+      sessionSampleRate: currentConfiguration.sessionSampleRate,
+      rcVersion: currentConfiguration.rcVersion,
     }
   }
 
+  function findSession(time?: number): SessionState | undefined {
+    if (time !== undefined) {
+      const historicalSession = sessionHistory.find(time)?.value
+      if (historicalSession && !isExpiredAt(historicalSession, time)) {
+        return historicalSession
+      }
+      return undefined
+    }
+    const state = store.get()
+    if (!state || isExpiredAt(state, now())) {
+      return undefined
+    }
+    return state
+  }
+
   return {
+    findSession,
     findTrackedSession: (time) => {
-      if (time !== undefined) {
-        const historicalSession = sessionHistory.find(time)?.value
-        if (historicalSession && historicalSession.isTracked !== false && !isExpiredAt(historicalSession, time)) {
-          return historicalSession
-        }
-        return undefined
-      }
-      const state = store.get()
-      if (!state) {
-        return undefined
-      }
-      if (state.isTracked === false || isExpiredAt(state, now())) {
+      const state = findSession(time)
+      if (!state || state.isTracked === false) {
         return undefined
       }
       return state

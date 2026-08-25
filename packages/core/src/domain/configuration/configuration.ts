@@ -28,6 +28,11 @@ export interface InitConfiguration {
   version?: string
   debug?: boolean // 是否开启调试模式
   trackAnonymousUser?: boolean
+  /**
+   * 是否启用远程配置。默认关闭；关闭时不会读取缓存或发起配置请求。
+   * @default false
+   */
+  remoteConfiguration?: boolean
 }
 
 export interface Configuration {
@@ -42,6 +47,7 @@ export interface Configuration {
   version?: string
   debug: boolean
   trackAnonymousUser: boolean
+  remoteConfiguration: boolean
 }
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
@@ -58,6 +64,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   const flushInterval = initConfiguration.flushInterval ?? 15000
   const debug = initConfiguration.debug ?? false
   const trackAnonymousUser = initConfiguration.trackAnonymousUser ?? true
+  const remoteConfiguration = initConfiguration.remoteConfiguration ?? false
 
   const configurationTags = buildTags(initConfiguration)
   const endpointBuilder = createEndpointBuilder(initConfiguration, 'rum', configurationTags)
@@ -74,6 +81,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
     version: initConfiguration.version,
     debug,
     trackAnonymousUser,
+    remoteConfiguration,
   }
 
   if (debug) {
@@ -89,6 +97,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
       sessionSampleRate: config.sessionSampleRate,
       flushInterval: `${config.flushInterval}ms`,
       trackAnonymousUser: config.trackAnonymousUser,
+      remoteConfiguration: config.remoteConfiguration,
     })
   }
 

@@ -18,6 +18,7 @@ export type { InitConfiguration, Configuration } from './domain/configuration/co
 export { validateAndBuildConfiguration } from './domain/configuration/configuration'
 export type { EndpointBuilder, ProxyFn } from './domain/configuration/endpointBuilder'
 export { createEndpointBuilder, isIntakeUrl } from './domain/configuration/endpointBuilder'
+export { SDK_VERSION } from './domain/configuration/sdkVersion'
 export type { Telemetry, TelemetryEvent } from './domain/telemetry/telemetry'
 export { startTelemetry } from './domain/telemetry/telemetry'
 

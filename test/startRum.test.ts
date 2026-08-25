@@ -6,7 +6,7 @@ import { LifeCycleEventType } from '../packages/miniprogram-rum/src/domain/lifeC
 import type { PlatformAdapter, RequestOptions, UploadFileOptions, DownloadFileOptions } from '../packages/miniprogram-platform/src/platform/types'
 
 function createAdapter(): PlatformAdapter {
-  let storage: unknown
+  const storage = new Map<string, unknown>()
   return {
     request: (options: RequestOptions) => {
       options.success?.({ statusCode: 200, data: 'ok' })
@@ -23,12 +23,12 @@ function createAdapter(): PlatformAdapter {
       options.complete?.()
       return { abort: () => undefined }
     },
-    setStorageSync: (_key, data) => {
-      storage = data
+    setStorageSync: (key, data) => {
+      storage.set(key, data)
     },
-    getStorageSync: () => storage,
-    removeStorageSync: () => {
-      storage = undefined
+    getStorageSync: (key) => storage.get(key),
+    removeStorageSync: (key) => {
+      storage.delete(key)
     },
     getSystemInfoSync: () => ({}),
     getNetworkType: ({ success }: { success: (res: any) => void }) => success({ networkType: 'wifi' }),
@@ -172,4 +172,84 @@ test('startRum reports traced resource events with backend-compatible _dd identi
   assert.equal(traceId.slice(0, 16), '0000000000000000')
   assert.equal(resourceEvent._dd.trace_id, traceIdDecimal)
   assert.equal(resourceEvent._dd.span_id, spanIdDecimal)
+})
+
+test('remote sampling keeps the current session and applies after stopSession', async () => {
+  const adapter = createAdapter()
+  const requests: RequestOptions[] = []
+  let remoteRequest: RequestOptions | undefined
+  adapter.request = (options: RequestOptions) => {
+    requests.push(options)
+    if (options.url.includes('/api/v2/rum/config')) {
+      remoteRequest = options
+    }
+    return { abort: () => undefined }
+  }
+
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    sessionSampleRate: 100,
+    remoteConfiguration: true,
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  const started = startRum(configuration, adapter)
+  const collected: any[] = []
+  started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+  const initialSession = started.sessionManager.findSession()!
+  assert.equal(initialSession.sessionSampleRate, 100)
+  assert.equal(initialSession.rcVersion, 0)
+
+  await Promise.resolve()
+  assert.ok(remoteRequest)
+  remoteRequest.success?.({
+    statusCode: 200,
+    data: { version: 8, enabled: true, rum: { sessionSampleRate: 0 } },
+  })
+  assert.equal(collected.some((event) => event.type === 'resource' || event.type === 'error'), false)
+
+  started.addCustomEvent('current-session-still-sampled')
+  assert.equal(collected.length, 1)
+
+  started.sessionManager.expire()
+  started.addCustomEvent('next-session-sampled-out')
+  const nextSession = started.sessionManager.findSession()!
+  assert.equal(nextSession.sessionSampleRate, 0)
+  assert.equal(nextSession.rcVersion, 8)
+  assert.equal(nextSession.isTracked, false)
+  assert.equal(collected.length, 1)
+  started.addCustomEvent('same-sampled-out-session')
+  assert.equal(started.sessionManager.findSession()?.id, nextSession.id)
+  assert.equal(collected.length, 1)
+  assert.equal(requests.filter((request) => request.url.includes('/api/v2/rum/config')).length, 1)
+
+  started.stop()
+})
+
+test('startRum does not request remote configuration when it is disabled', async () => {
+  const adapter = createAdapter()
+  const requests: RequestOptions[] = []
+  adapter.request = (options: RequestOptions) => {
+    requests.push(options)
+    return { abort: () => undefined }
+  }
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    remoteConfiguration: false,
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+
+  const started = startRum(configuration, adapter)
+  await Promise.resolve()
+
+  assert.equal(requests.some((request) => request.url.includes('/api/v2/rum/config')), false)
+  started.stop()
 })

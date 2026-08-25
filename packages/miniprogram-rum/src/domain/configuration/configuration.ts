@@ -1,4 +1,4 @@
-import type { Configuration, InitConfiguration, TraceContext } from '@flashcatcloud/miniprogram-core'
+import type { Configuration, InitConfiguration, ProxyFn, TraceContext } from '@flashcatcloud/miniprogram-core'
 import { validateAndBuildConfiguration } from '@flashcatcloud/miniprogram-core'
 
 export interface RumInitConfiguration extends InitConfiguration {
@@ -58,6 +58,10 @@ export interface RumConfiguration extends Configuration {
     rootTraceContext?: TraceContext
     headerName: string
   }
+  remoteConfigurationSource: {
+    proxy?: string | ProxyFn
+    site?: string
+  }
 }
 
 export function validateAndBuildRumConfiguration(
@@ -85,6 +89,10 @@ export function validateAndBuildRumConfiguration(
       sampleRate: initConfiguration.tracing?.sampleRate ?? 100,
       rootTraceContext: initConfiguration.tracing?.rootTraceContext,
       headerName: initConfiguration.tracing?.headerName ?? 'traceparent',
+    },
+    remoteConfigurationSource: {
+      proxy: initConfiguration.proxy,
+      site: initConfiguration.site,
     },
   }
 }

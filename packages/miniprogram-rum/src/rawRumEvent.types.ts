@@ -44,6 +44,7 @@ export interface RawRumViewEvent extends RawRumEventBase {
     page_states?: PageStateServerEntry[]
     configuration: {
       session_sample_rate: number
+      rc_version?: number
       session_replay_sample_rate: number
       start_session_replay_recording_manually: boolean
     }

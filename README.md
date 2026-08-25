@@ -52,6 +52,8 @@ flashcatRum.init({
   service: "my-miniprogram",
   env: "production",
   version: "1.0.0",
+  // 可选：启用 RUM 远程会话采样配置
+  remoteConfiguration: true,
 });
 
 App({
@@ -141,11 +143,12 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 | `clientToken`       | string   | ✅   | -                        | 客户端 Token                                                              |
 | `applicationId`     | string   | ✅   | -                        | 应用 ID                                                                   |
 | `site`              | string   | ❌   | `browser.flashcat.cloud` | FlashCat 站点域名，自动拼接为 `https://{site}/api/v2/rum`                 |
-| `proxy`             | string   | ❌   | -                        | 代理地址，SDK 拼接为 `{proxy}?ddforward={encodedPath}`（优先级高于 site） |
+| `proxy`             | string / function | ❌ | -                    | 代理地址或 URL 构建函数（优先级高于 site）                                |
 | `service`           | string   | ❌   | -                        | 服务名称                                                                  |
 | `env`               | string   | ❌   | -                        | 环境（dev/test/prod）                                                     |
 | `version`           | string   | ❌   | -                        | 应用版本号                                                                |
 | `sessionSampleRate` | number   | ❌   | 100                      | 会话采样率（0-100）                                                       |
+| `remoteConfiguration` | boolean | ❌ | false                    | 是否启用远程会话采样配置                                                  |
 | `flushInterval`     | number   | ❌   | 15000                    | 上报间隔（毫秒）                                                          |
 | `trackPages`        | boolean  | ❌   | true                     | 是否追踪页面                                                              |
 | `trackActions`      | boolean  | ❌   | true                     | 是否追踪用户交互                                                          |
@@ -154,6 +157,20 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 | `trackPerformance`  | boolean  | ❌   | true                     | 是否追踪性能                                                              |
 | `debug`             | boolean  | ❌   | false                    | 是否开启调试模式                                                          |
 | `beforeSend`        | function | ❌   | -                        | 数据过滤钩子                                                              |
+
+### 远程会话采样配置
+
+设置 `remoteConfiguration: true` 后，SDK 会在初始化时同步读取上次缓存的有效配置，并在初始化完成后异步请求一次 `/api/v2/rum/config`。配置请求不阻塞初始化和事件采集，也不会被记录为 RUM resource 或 error 事件。
+
+会话采样只在创建 Session 时执行一次：
+
+- 冷启动已有有效缓存时，首个新 Session 直接使用缓存中的采样率。
+- 没有缓存时，首个 Session 使用初始化的 `sessionSampleRate`；随后拉取到的新值只影响之后创建的 Session。
+- 当前 Session 不会因配置拉取成功而重新抽签。调用 `flashcatRum.stopSession()` 后，下一次事件创建的新 Session 会使用最新配置。
+- 配置接口不可用、响应非法或缓存不可读时，SDK 安全回退到初始化采样率，不影响正常采集。
+- 本期远程配置只支持 `sessionSampleRate`；追踪采样率、回放采样率和隐私等级等字段会被忽略。
+
+远程配置沿用现有 `site` 或 `proxy`。因此直连模式无需额外添加小程序合法域名；代理模式需确保现有代理同时转发 `/api/v2/rum/config`，并建议透传 ETag 以使用 `304 Not Modified`。SDK 只在初始化时拉取（失败时会进行有限重试），不会定时轮询，也不会在创建新 Session 时额外请求。
 
 ## API 文档
 

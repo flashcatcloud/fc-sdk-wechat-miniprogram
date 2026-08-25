@@ -54,6 +54,92 @@ test('sessionManager findTrackedSession returns undefined for sampled-out sessio
   assert.equal(found, undefined)
 })
 
+test('sessionManager keeps sampled-out session valid without drawing again', () => {
+  const store = createMockStore()
+  const originalRandom = Math.random
+  let configurationReads = 0
+  Math.random = () => 0.75
+
+  try {
+    const manager = startSessionManager(store, {
+      getSessionConfiguration: () => {
+        configurationReads += 1
+        return { sessionSampleRate: 50, rcVersion: 1 }
+      },
+    })
+    const created = manager.renew()
+
+    assert.equal(created.isTracked, false)
+    assert.equal(manager.findSession()?.id, created.id)
+    assert.equal(manager.findSession()?.id, created.id)
+    assert.equal(manager.findTrackedSession(), undefined)
+    assert.equal(configurationReads, 1)
+  } finally {
+    Math.random = originalRandom
+  }
+})
+
+test('sessionManager locks rate and remote version once per new session', () => {
+  const store = createMockStore()
+  let snapshot = { sessionSampleRate: 100, rcVersion: 3 }
+  const manager = startSessionManager(store, { getSessionConfiguration: () => snapshot })
+
+  const first = manager.renew()
+  snapshot = { sessionSampleRate: 0, rcVersion: 4 }
+
+  assert.equal(manager.findSession()?.sessionSampleRate, 100)
+  assert.equal(manager.findSession()?.rcVersion, 3)
+
+  manager.expire()
+  const second = manager.renew()
+  assert.equal(second.sessionSampleRate, 0)
+  assert.equal(second.rcVersion, 4)
+  assert.equal(second.isTracked, false)
+})
+
+test('sessionManager normalizes legacy session metadata without changing its draw', () => {
+  const store = createMockStore()
+  store.set({
+    id: 'legacy-session',
+    created: Date.now(),
+    expireAt: Date.now() + 60_000,
+    isTracked: false,
+  })
+
+  const manager = startSessionManager(store, {
+    sessionSampleRate: 67,
+    getSessionConfiguration: () => ({ sessionSampleRate: 100, rcVersion: 9 }),
+  })
+
+  const session = manager.findSession()
+  assert.equal(session?.id, 'legacy-session')
+  assert.equal(session?.isTracked, false)
+  assert.equal(session?.sessionSampleRate, 67)
+  assert.equal(session?.rcVersion, 0)
+})
+
+test('sessionManager does not rewrite a current-format initial session', () => {
+  const stored = {
+    id: 'current-session',
+    created: Date.now(),
+    expireAt: Date.now() + 60_000,
+    isTracked: true,
+    sessionSampleRate: 50,
+    rcVersion: 2,
+  }
+  let writes = 0
+  const manager = startSessionManager({
+    get: () => stored,
+    set: () => {
+      writes += 1
+    },
+    clear: () => undefined,
+  })
+
+  assert.equal(manager.findSession()?.id, stored.id)
+  assert.equal(writes, 0)
+})
+
 test('sessionManager findTrackedSession returns undefined when no session', () => {
   const store = createMockStore()
   const manager = startSessionManager(store)
