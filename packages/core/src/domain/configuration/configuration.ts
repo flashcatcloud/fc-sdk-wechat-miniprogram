@@ -29,10 +29,12 @@ export interface InitConfiguration {
   debug?: boolean // 是否开启调试模式
   trackAnonymousUser?: boolean
   /**
-   * 是否启用远程配置。默认关闭；关闭时不会读取缓存或发起配置请求。
+   * Whether the console may set the sampling configuration remotely. When off —
+   * the default — nothing is read from the cache and no configuration request is
+   * ever made.
    * @default false
    */
-  remoteConfiguration?: boolean
+  remoteConfigurationEnabled?: boolean
 }
 
 export interface Configuration {
@@ -47,7 +49,7 @@ export interface Configuration {
   version?: string
   debug: boolean
   trackAnonymousUser: boolean
-  remoteConfiguration: boolean
+  remoteConfigurationEnabled: boolean
 }
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
@@ -64,7 +66,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   const flushInterval = initConfiguration.flushInterval ?? 15000
   const debug = initConfiguration.debug ?? false
   const trackAnonymousUser = initConfiguration.trackAnonymousUser ?? true
-  const remoteConfiguration = initConfiguration.remoteConfiguration ?? false
+  const remoteConfigurationEnabled = initConfiguration.remoteConfigurationEnabled ?? false
 
   const configurationTags = buildTags(initConfiguration)
   const endpointBuilder = createEndpointBuilder(initConfiguration, 'rum', configurationTags)
@@ -81,7 +83,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
     version: initConfiguration.version,
     debug,
     trackAnonymousUser,
-    remoteConfiguration,
+    remoteConfigurationEnabled,
   }
 
   if (debug) {
@@ -97,7 +99,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
       sessionSampleRate: config.sessionSampleRate,
       flushInterval: `${config.flushInterval}ms`,
       trackAnonymousUser: config.trackAnonymousUser,
-      remoteConfiguration: config.remoteConfiguration,
+      remoteConfigurationEnabled: config.remoteConfigurationEnabled,
     })
   }
 

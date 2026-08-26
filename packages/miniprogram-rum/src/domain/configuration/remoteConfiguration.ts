@@ -48,7 +48,7 @@ export function createRemoteConfigurationController(
     rcVersion: 0,
   }
 
-  if (!configuration.remoteConfiguration) {
+  if (!configuration.remoteConfigurationEnabled) {
     return {
       getSessionConfiguration: () => initialSnapshot,
       fetch: () => undefined,

@@ -61,7 +61,7 @@ function configuration(overrides: Record<string, unknown> = {}) {
     clientToken: 'token value',
     applicationId: 'app-id',
     sessionSampleRate: 73,
-    remoteConfiguration: true,
+    remoteConfigurationEnabled: true,
     env: 'prod cn',
     version: '1.2.3',
     ...overrides,
@@ -289,7 +289,7 @@ test('corrupt or incompatible cache is removed and storage failures are isolated
 
 test('disabled remote configuration performs no cache access and no request', () => {
   const adapter = createAdapter()
-  const controller = createRemoteConfigurationController(adapter, configuration({ remoteConfiguration: false }))
+  const controller = createRemoteConfigurationController(adapter, configuration({ remoteConfigurationEnabled: false }))
   controller.fetch(3)
 
   assert.equal(adapter.storageReads, 0)
