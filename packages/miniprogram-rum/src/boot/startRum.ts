@@ -39,6 +39,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
 
   if (configuration.debug) {
     console.log('[FlashCat RUM][Debug] RUM monitoring started', {
+      sessionSampleRate: sessionManager.findSession()?.sessionSampleRate,
       trackPages: configuration.trackPages,
       trackActions: configuration.trackActions,
       trackRequests: configuration.trackRequests,

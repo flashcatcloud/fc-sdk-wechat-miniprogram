@@ -54,11 +54,13 @@ export function startSessionManager(
     sessionSampleRate = 100,
     getSessionConfiguration,
     beforeSampling,
+    debug = false,
   }: {
     trackAnonymousUser?: boolean
     sessionSampleRate?: number
     getSessionConfiguration?: () => SessionConfiguration
     beforeSampling?: BeforeSamplingCallback
+    debug?: boolean
   } = {},
 ): SessionManager {
   let lastExpand = 0
@@ -89,6 +91,13 @@ export function startSessionManager(
       }
     }
     sessionHistory.add(cloneSessionState(initialSession), initialSession.created)
+    if (debug) {
+      try {
+        console.log('[FlashCat RUM SDK][Debug] Using sessionSampleRate', initialSession.sessionSampleRate)
+      } catch {
+        // Console implementations are host code and must not affect session restore.
+      }
+    }
   }
 
   function isExpiredAt(state: SessionState, time: number) {
@@ -122,12 +131,20 @@ export function startSessionManager(
 
     const isForced = forceNextSession
     forceNextSession = false
+    const isTracked = isForced || performDraw(resolvedSessionSampleRate)
+    if (debug) {
+      try {
+        console.log('[FlashCat RUM][Debug] Using sessionSampleRate', resolvedSessionSampleRate)
+      } catch {
+        // Console implementations are host code and must not affect session creation.
+      }
+    }
     return {
       id: generateUUID(),
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
-      isTracked: isForced || performDraw(resolvedSessionSampleRate),
+      isTracked,
       sessionSampleRate: resolvedSessionSampleRate,
       rcVersion: currentConfiguration.rcVersion,
     }

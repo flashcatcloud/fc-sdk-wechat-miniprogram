@@ -455,3 +455,56 @@ test('sessionManager is silent by default', () => {
 
   assert.equal(logs.length, 0)
 })
+
+test('sessionManager logs the resolved sessionSampleRate when debug is enabled', () => {
+  const originalLog = console.log
+  const logs: unknown[][] = []
+  console.log = (...args: unknown[]) => logs.push(args)
+
+  try {
+    const initOnly = startSessionManager(createMockStore(), {
+      sessionSampleRate: 40,
+      debug: true,
+    })
+    initOnly.renew()
+
+    const remote = startSessionManager(createMockStore(), {
+      sessionSampleRate: 40,
+      getSessionConfiguration: () => ({ sessionSampleRate: 12, rcVersion: 7 }),
+      debug: true,
+    })
+    remote.renew()
+
+    const overridden = startSessionManager(createMockStore(), {
+      sessionSampleRate: 40,
+      getSessionConfiguration: () => ({ sessionSampleRate: 12, rcVersion: 7 }),
+      beforeSampling: () => 88,
+      debug: true,
+    })
+    overridden.renew()
+
+    const restoredStore = createMockStore()
+    restoredStore.set({
+      id: 'existing',
+      created: Date.now(),
+      expireAt: Date.now() + 60_000,
+      isTracked: true,
+      sessionSampleRate: 67,
+      rcVersion: 3,
+    })
+    startSessionManager(restoredStore, {
+      sessionSampleRate: 40,
+      getSessionConfiguration: () => ({ sessionSampleRate: 12, rcVersion: 7 }),
+      debug: true,
+    })
+  } finally {
+    console.log = originalLog
+  }
+
+  assert.deepEqual(logs, [
+    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 40],
+    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 12],
+    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 88],
+    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 67],
+  ])
+})

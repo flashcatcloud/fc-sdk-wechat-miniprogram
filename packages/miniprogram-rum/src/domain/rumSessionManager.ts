@@ -33,5 +33,6 @@ export function startRumSessionManager(
     sessionSampleRate: configuration.sessionSampleRate,
     getSessionConfiguration,
     beforeSampling: configuration.beforeSampling,
+    debug: configuration.debug,
   })
 }
