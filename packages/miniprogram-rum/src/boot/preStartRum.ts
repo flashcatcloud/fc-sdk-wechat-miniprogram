@@ -38,6 +38,8 @@ export function createPreStartStrategy(
     setUser: (context) => buffer.push((strategy) => strategy.setUser(context)),
     startPage: (name) => buffer.push((strategy) => strategy.startPage(name)),
     stopSession: () => buffer.push((strategy) => strategy.stopSession()),
+    setForcedSession: () => buffer.push((strategy) => strategy.setForcedSession()),
+    getRemoteConfig: () => undefined,
     getInitConfiguration: () => initConfiguration,
   }
 

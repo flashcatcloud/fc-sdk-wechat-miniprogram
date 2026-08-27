@@ -68,12 +68,12 @@ function configuration(overrides: Record<string, unknown> = {}) {
   })!
 }
 
-test('remote configuration accepts compatible schemas and only consumes sessionSampleRate', () => {
+test('remote configuration accepts compatible schemas and only consumes sessionSampleRate and custom', () => {
   const cases = [
     {
       name: 'missing schema',
       data: { version: 2, enabled: true, rum: { sessionSampleRate: 21 } },
-      expected: { sessionSampleRate: 21, rcVersion: 2 },
+      expected: { sessionSampleRate: 21, rcVersion: 2, custom: null },
     },
     {
       name: 'schema v1 with unknown keys',
@@ -84,12 +84,12 @@ test('remote configuration accepts compatible schemas and only consumes sessionS
         rum: { sessionSampleRate: 22, traceSampleRate: 0, privacyLevel: 'mask' },
         custom: { anything: true },
       },
-      expected: { sessionSampleRate: 22, rcVersion: 3 },
+      expected: { sessionSampleRate: 22, rcVersion: 3, custom: { anything: true } },
     },
     {
       name: 'missing sampling field',
       data: { schema_version: 1, version: 4, enabled: true, rum: { traceSampleRate: 0 } },
-      expected: { sessionSampleRate: 73, rcVersion: 4 },
+      expected: { sessionSampleRate: 73, rcVersion: 4, custom: null },
     },
   ]
 
@@ -128,7 +128,7 @@ test('remote configuration logs fetched and applied values when debug is enabled
       '[FlashCat RUM][Debug] Remote configuration fetched',
       {
         response: data,
-        applied: { sessionSampleRate: 35, rcVersion: 6 },
+        applied: { sessionSampleRate: 35, rcVersion: 6, custom: null },
         etag: '"config-6"',
       },
     ]])
@@ -157,7 +157,7 @@ test('remote configuration rejects incompatible or malformed snapshots as a whol
       setTimeout: () => 1,
     })
     controller.fetch()
-    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0 })
+    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
     controller.stop()
   }
 })
@@ -168,12 +168,12 @@ test('enabled false clears cache and falls back to the initialization rate', () 
   const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: response }), storage)
   const controller = createRemoteConfigurationController(adapter, configuration())
   controller.fetch()
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 12, rcVersion: 7 })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 12, rcVersion: 7, custom: null })
   assert.equal(storage.size, 2)
 
   response = { version: 8, enabled: false, rum: { sessionSampleRate: 0 } }
   controller.fetch(7)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0 })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
   assert.equal(storage.size, 0)
   controller.stop()
 })
@@ -191,10 +191,10 @@ test('cache is loaded synchronously with ETag and 304 preserves the snapshot', (
 
   const secondAdapter = createAdapter((options) => options.success?.({ statusCode: 304 }), storage)
   const second = createRemoteConfigurationController(secondAdapter, configuration())
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, rcVersion: 9 })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, rcVersion: 9, custom: null })
   second.fetch(9)
   assert.equal(secondAdapter.requests[0].header?.['If-None-Match'], '"config-9"')
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, rcVersion: 9 })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, rcVersion: 9, custom: null })
   second.stop()
 })
 
@@ -216,7 +216,7 @@ test('cache dimensions isolate endpoint, application, env and app version', () =
   ]
   for (const variant of variants) {
     const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration(variant))
-    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0 })
+    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
     controller.stop()
   }
 })
@@ -246,9 +246,9 @@ test('cache cleanup removes the previous app version and ignores dynamic functio
   const second = createRemoteConfigurationController(secondAdapter, configuration({ proxy, version: '2.0.0' }))
 
   assert.equal(storage.has(firstCacheKey), false)
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0 })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
   second.fetch()
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 30, rcVersion: 6 })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 30, rcVersion: 6, custom: null })
   assert.equal(
     [...storage.keys()].filter((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX)).length,
     1,
@@ -270,7 +270,7 @@ test('corrupt or incompatible cache is removed and storage failures are isolated
   storage.set(cacheKey, '{not json')
 
   const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0 })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
   assert.equal(storage.has(cacheKey), false)
   controller.stop()
 
@@ -283,7 +283,7 @@ test('corrupt or incompatible cache is removed and storage failures are isolated
   throwingAdapter.removeStorageSync = () => { throw new Error('remove failed') }
   const storageFailure = createRemoteConfigurationController(throwingAdapter, configuration())
   assert.doesNotThrow(() => storageFailure.fetch())
-  assert.deepEqual(storageFailure.getSessionConfiguration(), { sessionSampleRate: 19, rcVersion: 2 })
+  assert.deepEqual(storageFailure.getSessionConfiguration(), { sessionSampleRate: 19, rcVersion: 2, custom: null })
   storageFailure.stop()
 })
 
@@ -294,7 +294,129 @@ test('disabled remote configuration performs no cache access and no request', ()
 
   assert.equal(adapter.storageReads, 0)
   assert.equal(adapter.requests.length, 0)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0 })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.equal(controller.getRemoteConfig(), undefined)
+})
+
+test('custom survives a cold start through the cache and 304 keeps the cached value', () => {
+  const storage = new Map<string, unknown>()
+  const firstAdapter = createAdapter((options) => options.success?.({
+    statusCode: 200,
+    data: {
+      version: 20,
+      enabled: true,
+      rum: { sessionSampleRate: 44 },
+      custom: { supportUsers: ['u-1'], featureFlags: { newCart: true } },
+    },
+    header: { ETag: '"config-20"' },
+  }), storage)
+  const first = createRemoteConfigurationController(firstAdapter, configuration())
+  assert.equal(first.getRemoteConfig(), undefined)
+  first.fetch()
+  assert.deepEqual(first.getRemoteConfig(), { supportUsers: ['u-1'], featureFlags: { newCart: true } })
+  first.stop()
+
+  const secondAdapter = createAdapter((options) => options.success?.({ statusCode: 304 }), storage)
+  const second = createRemoteConfigurationController(secondAdapter, configuration())
+  assert.deepEqual(second.getRemoteConfig(), { supportUsers: ['u-1'], featureFlags: { newCart: true } })
+  second.fetch(20)
+  assert.deepEqual(second.getSessionConfiguration(), {
+    sessionSampleRate: 44,
+    rcVersion: 20,
+    custom: { supportUsers: ['u-1'], featureFlags: { newCart: true } },
+  })
+  second.stop()
+})
+
+test('a 200 response without custom clears the previously applied custom', () => {
+  let response: unknown = { version: 21, enabled: true, rum: { sessionSampleRate: 40 }, custom: { tier: 'gold' } }
+  const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: response }))
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  controller.fetch()
+  assert.deepEqual(controller.getRemoteConfig(), { tier: 'gold' })
+
+  response = { version: 22, enabled: true, rum: { sessionSampleRate: 40 } }
+  controller.fetch(21)
+  assert.equal(controller.getRemoteConfig(), undefined)
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 40, rcVersion: 22, custom: null })
+  controller.stop()
+})
+
+test('the kill switch clears custom together with the cache', () => {
+  const storage = new Map<string, unknown>()
+  let response: unknown = { version: 23, enabled: true, rum: { sessionSampleRate: 40 }, custom: { tier: 'gold' } }
+  const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: response }), storage)
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  controller.fetch()
+  assert.deepEqual(controller.getRemoteConfig(), { tier: 'gold' })
+
+  response = { version: 24, enabled: false }
+  controller.fetch(23)
+  assert.equal(controller.getRemoteConfig(), undefined)
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.equal(storage.size, 0)
+  controller.stop()
+})
+
+test('a non-object custom is ignored without affecting session sampling', () => {
+  for (const custom of ['text', 42, true, null, ['a'], undefined]) {
+    const adapter = createAdapter((options) => options.success?.({
+      statusCode: 200,
+      data: { version: 25, enabled: true, rum: { sessionSampleRate: 41 }, custom },
+    }))
+    const controller = createRemoteConfigurationController(adapter, configuration())
+    controller.fetch()
+    assert.equal(controller.getRemoteConfig(), undefined, `custom ${JSON.stringify(custom)}`)
+    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 41, rcVersion: 25, custom: null })
+    controller.stop()
+  }
+})
+
+test('custom accessors return defensive copies that cannot mutate internal state', () => {
+  const adapter = createAdapter((options) => options.success?.({
+    statusCode: 200,
+    data: { version: 26, enabled: true, rum: { sessionSampleRate: 40 }, custom: { nested: { tier: 'gold' } } },
+  }))
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  controller.fetch()
+
+  const first = controller.getRemoteConfig()!
+  const second = controller.getRemoteConfig()!
+  assert.notEqual(first, second)
+  assert.notEqual(first.nested, second.nested)
+
+  first.injected = true
+  ;(first.nested as Record<string, unknown>).tier = 'bronze'
+  assert.deepEqual(controller.getRemoteConfig(), { nested: { tier: 'gold' } })
+
+  const snapshot = controller.getSessionConfiguration()
+  snapshot.custom!.injected = true
+  assert.deepEqual(controller.getSessionConfiguration().custom, { nested: { tier: 'gold' } })
+  controller.stop()
+})
+
+test('a cache written before custom existed stays usable while getRemoteConfig returns undefined', () => {
+  const storage = new Map<string, unknown>()
+  const seedAdapter = createAdapter((options) => options.success?.({
+    statusCode: 200,
+    data: { version: 27, enabled: true, rum: { sessionSampleRate: 33 } },
+  }), storage)
+  const seed = createRemoteConfigurationController(seedAdapter, configuration())
+  seed.fetch()
+  seed.stop()
+
+  // Rewrite the cache the way an SDK version without custom support would have.
+  const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
+  storage.set(cacheKey, JSON.stringify({
+    formatVersion: 1,
+    snapshot: { sessionSampleRate: 33, rcVersion: 27 },
+    etag: '"config-27"',
+  }))
+
+  const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 33, rcVersion: 27, custom: null })
+  assert.equal(controller.getRemoteConfig(), undefined)
+  controller.stop()
 })
 
 test('direct request contains complete parameters, applied version and internal marker', () => {

@@ -1,7 +1,19 @@
-import type { Configuration, InitConfiguration, ProxyFn, TraceContext } from '@flashcatcloud/miniprogram-core'
+import type {
+  BeforeSamplingCallback,
+  BeforeSamplingContext,
+  Configuration,
+  InitConfiguration,
+  ProxyFn,
+  TraceContext,
+} from '@flashcatcloud/miniprogram-core'
 import { validateAndBuildConfiguration } from '@flashcatcloud/miniprogram-core'
 
 export interface RumInitConfiguration extends InitConfiguration {
+  /**
+   * Synchronously adjusts the sample rate used when a new Session is created.
+   * Invalid return values and thrown errors leave the incoming rate unchanged.
+   */
+  beforeSampling?: BeforeSamplingCallback
   trackActions?: boolean
   trackRequests?: boolean
   trackErrors?: boolean
@@ -62,7 +74,10 @@ export interface RumConfiguration extends Configuration {
     proxy?: string | ProxyFn
     site?: string
   }
+  beforeSampling?: BeforeSamplingCallback
 }
+
+export type { BeforeSamplingCallback, BeforeSamplingContext }
 
 export function validateAndBuildRumConfiguration(
   initConfiguration: RumInitConfiguration,
@@ -94,6 +109,7 @@ export function validateAndBuildRumConfiguration(
       proxy: initConfiguration.proxy,
       site: initConfiguration.site,
     },
+    beforeSampling: initConfiguration.beforeSampling,
   }
 }
 

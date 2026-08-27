@@ -145,6 +145,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   return {
     lifeCycle,
     sessionManager,
+    getRemoteConfig: remoteConfigurationController.getRemoteConfig,
     globalContext,
     userContext,
     addAction: actionCollection?.addAction || (() => undefined),

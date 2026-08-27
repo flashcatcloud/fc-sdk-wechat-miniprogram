@@ -14,6 +14,7 @@ const REMOTE_CONFIGURATION_INDEX_KEY_PREFIX = '_fc_rum_remote_config_index_v1_'
 export interface SessionConfigurationSnapshot {
   sessionSampleRate: number
   rcVersion: number
+  custom: Record<string, unknown> | null
 }
 
 interface CachedRemoteConfiguration {
@@ -30,6 +31,7 @@ interface RemoteConfigurationDependencies {
 
 export interface RemoteConfigurationController {
   getSessionConfiguration: () => SessionConfigurationSnapshot
+  getRemoteConfig: () => Record<string, unknown> | undefined
   fetch: (appliedVersion?: number) => void
   stop: () => void
 }
@@ -46,11 +48,13 @@ export function createRemoteConfigurationController(
   const initialSnapshot: SessionConfigurationSnapshot = {
     sessionSampleRate: configuration.sessionSampleRate,
     rcVersion: 0,
+    custom: null,
   }
 
   if (!configuration.remoteConfigurationEnabled) {
     return {
       getSessionConfiguration: () => initialSnapshot,
+      getRemoteConfig: () => undefined,
       fetch: () => undefined,
       stop: () => undefined,
     }
@@ -69,6 +73,7 @@ export function createRemoteConfigurationController(
   if (!endpoint) {
     return {
       getSessionConfiguration: () => currentSnapshot,
+      getRemoteConfig: () => undefined,
       fetch: () => undefined,
       stop: () => {
         stopped = true
@@ -117,7 +122,7 @@ export function createRemoteConfigurationController(
         clearCache()
         return
       }
-      currentSnapshot = parsed.snapshot
+      currentSnapshot = normalizeSnapshot(parsed.snapshot)
       etag = parsed.etag
       hasRemoteSnapshot = true
     } catch {
@@ -251,7 +256,14 @@ export function createRemoteConfigurationController(
   }
 
   return {
-    getSessionConfiguration: () => currentSnapshot,
+    getSessionConfiguration: () => ({
+      ...currentSnapshot,
+      custom: cloneCustom(currentSnapshot.custom),
+    }),
+    getRemoteConfig: () => {
+      const custom = cloneCustom(currentSnapshot.custom)
+      return custom || undefined
+    },
     fetch: (appliedVersion) => {
       try {
         request(appliedVersion, 0)
@@ -312,11 +324,14 @@ function parseResponse(
     sessionSampleRate = value.rum.sessionSampleRate
   }
 
+  const custom = isRecord(value.custom) ? cloneCustom(value.custom) : null
+
   return {
     enabled: true,
     snapshot: {
       sessionSampleRate,
       rcVersion: isRemoteVersion(value.version) ? value.version : 0,
+      custom,
     },
   }
 }
@@ -328,12 +343,33 @@ function isCachedRemoteConfiguration(value: unknown): value is CachedRemoteConfi
   return (
     isSampleRate(value.snapshot.sessionSampleRate) &&
     isRemoteVersion(value.snapshot.rcVersion) &&
+    (value.snapshot.custom === undefined || isRecord(value.snapshot.custom) || value.snapshot.custom === null) &&
     (value.etag === undefined || typeof value.etag === 'string')
   )
 }
 
 function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeSnapshot(snapshot: SessionConfigurationSnapshot): SessionConfigurationSnapshot {
+  return {
+    sessionSampleRate: snapshot.sessionSampleRate,
+    rcVersion: snapshot.rcVersion,
+    custom: isRecord(snapshot.custom) ? cloneCustom(snapshot.custom) : null,
+  }
+}
+
+function cloneCustom(custom: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (custom === null) {
+    return null
+  }
+  try {
+    const cloned = JSON.parse(JSON.stringify(custom))
+    return isRecord(cloned) ? cloned : null
+  } catch {
+    return null
+  }
 }
 
 function isSampleRate(value: unknown): value is number {

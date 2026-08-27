@@ -12,7 +12,14 @@ export * from './tools/serialisation/jsonStringify'
 
 export type { Context, ContextManager } from './domain/context/contextManager'
 export { createContextManager } from './domain/context/contextManager'
-export type { SessionManager, SessionState, SessionStore } from './domain/session/sessionManager'
+export type {
+  BeforeSamplingCallback,
+  BeforeSamplingContext,
+  SessionConfiguration,
+  SessionManager,
+  SessionState,
+  SessionStore,
+} from './domain/session/sessionManager'
 export { startSessionManager } from './domain/session/sessionManager'
 export type { InitConfiguration, Configuration } from './domain/configuration/configuration'
 export { validateAndBuildConfiguration } from './domain/configuration/configuration'

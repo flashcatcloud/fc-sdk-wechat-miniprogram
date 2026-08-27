@@ -266,6 +266,177 @@ test('sessionManager hard timeout', () => {
   assert.equal(found, undefined)
 })
 
+test('beforeSampling receives the initialization rate when no remote provider is set', () => {
+  const store = createMockStore()
+  const contexts: unknown[] = []
+  const manager = startSessionManager(store, {
+    sessionSampleRate: 61,
+    beforeSampling: (context) => {
+      contexts.push(context)
+      return undefined
+    },
+  })
+
+  const session = manager.renew()
+  assert.deepEqual(contexts, [{ sessionSampleRate: 61, custom: null }])
+  assert.equal(session.sessionSampleRate, 61)
+})
+
+test('beforeSampling receives the remote rate and custom of the session being created', () => {
+  const store = createMockStore()
+  const contexts: Array<{ sessionSampleRate: number; custom: Record<string, unknown> | null }> = []
+  let snapshot = { sessionSampleRate: 30, rcVersion: 4, custom: { tier: 'gold' } as Record<string, unknown> | null }
+  const manager = startSessionManager(store, {
+    sessionSampleRate: 61,
+    getSessionConfiguration: () => snapshot,
+    beforeSampling: (context) => {
+      contexts.push(context)
+      return undefined
+    },
+  })
+
+  manager.renew()
+  snapshot = { sessionSampleRate: 70, rcVersion: 5, custom: null }
+  manager.expire()
+  manager.renew()
+
+  assert.deepEqual(contexts, [
+    { sessionSampleRate: 30, custom: { tier: 'gold' } },
+    { sessionSampleRate: 70, custom: null },
+  ])
+})
+
+test('beforeSampling receives a copy of custom that cannot mutate the provider snapshot', () => {
+  const store = createMockStore()
+  const snapshot = { sessionSampleRate: 100, rcVersion: 1, custom: { tier: 'gold' } as Record<string, unknown> }
+  const manager = startSessionManager(store, {
+    getSessionConfiguration: () => snapshot,
+    beforeSampling: (context) => {
+      ;(context.custom as Record<string, unknown>).tier = 'bronze'
+      return undefined
+    },
+  })
+
+  manager.renew()
+  assert.deepEqual(snapshot.custom, { tier: 'gold' })
+})
+
+test('beforeSampling overrides the rate used for the single draw', () => {
+  const store = createMockStore()
+  const manager = startSessionManager(store, {
+    sessionSampleRate: 100,
+    beforeSampling: () => 0,
+  })
+
+  const session = manager.renew()
+  assert.equal(session.sessionSampleRate, 0)
+  assert.equal(session.isTracked, false)
+  assert.equal(manager.findTrackedSession(), undefined)
+})
+
+test('beforeSampling falls back to the incoming rate for invalid results and thrown errors', () => {
+  const invalidResults: unknown[] = [
+    undefined,
+    null,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    -1,
+    101,
+    '50',
+    {},
+  ]
+
+  for (const result of invalidResults) {
+    const manager = startSessionManager(createMockStore(), {
+      sessionSampleRate: 100,
+      beforeSampling: () => result as number | undefined,
+    })
+    const session = manager.renew()
+    assert.equal(session.sessionSampleRate, 100, `result ${JSON.stringify(result)}`)
+    assert.equal(session.isTracked, true, `result ${JSON.stringify(result)}`)
+  }
+
+  const throwing = startSessionManager(createMockStore(), {
+    sessionSampleRate: 100,
+    beforeSampling: () => {
+      throw new Error('host callback failed')
+    },
+  })
+  let session!: ReturnType<typeof throwing.renew>
+  assert.doesNotThrow(() => {
+    session = throwing.renew()
+  })
+  assert.equal(session.sessionSampleRate, 100)
+  assert.equal(session.isTracked, true)
+})
+
+test('beforeSampling accepts the boundary rates 0 and 100', () => {
+  const zero = startSessionManager(createMockStore(), { sessionSampleRate: 100, beforeSampling: () => 0 })
+  assert.equal(zero.renew().isTracked, false)
+
+  const hundred = startSessionManager(createMockStore(), { sessionSampleRate: 0, beforeSampling: () => 100 })
+  assert.equal(hundred.renew().isTracked, true)
+})
+
+test('setForcedSession leaves the current session untouched and forces only the next one', () => {
+  const store = createMockStore()
+  const manager = startSessionManager(store, { sessionSampleRate: 0 })
+
+  const current = manager.renew()
+  assert.equal(current.isTracked, false)
+
+  manager.setForcedSession()
+  assert.equal(manager.findSession()?.id, current.id)
+  assert.equal(manager.findSession()?.isTracked, false)
+  assert.equal(manager.findTrackedSession(), undefined)
+
+  manager.expire()
+  const forced = manager.renew()
+  assert.equal(forced.isTracked, true)
+  assert.equal(forced.sessionSampleRate, 0)
+  assert.equal(manager.findTrackedSession()?.id, forced.id)
+
+  manager.expire()
+  const afterForced = manager.renew()
+  assert.equal(afterForced.isTracked, false)
+})
+
+test('setForcedSession before any session is created forces that first session', () => {
+  const manager = startSessionManager(createMockStore(), { sessionSampleRate: 0 })
+
+  manager.setForcedSession()
+  assert.equal(manager.renew().isTracked, true)
+})
+
+test('setForcedSession is idempotent and consumed by a single session', () => {
+  const manager = startSessionManager(createMockStore(), { sessionSampleRate: 0 })
+
+  manager.renew()
+  manager.setForcedSession()
+  manager.setForcedSession()
+
+  manager.expire()
+  assert.equal(manager.renew().isTracked, true)
+  manager.expire()
+  assert.equal(manager.renew().isTracked, false)
+})
+
+test('setForcedSession takes precedence over a beforeSampling rate of 0', () => {
+  const manager = startSessionManager(createMockStore(), {
+    sessionSampleRate: 100,
+    beforeSampling: () => 0,
+  })
+
+  manager.renew()
+  manager.setForcedSession()
+  manager.expire()
+
+  const forced = manager.renew()
+  assert.equal(forced.isTracked, true)
+  assert.equal(forced.sessionSampleRate, 0)
+})
+
 test('sessionManager is silent by default', () => {
   const store = createMockStore()
   const manager = startSessionManager(store)

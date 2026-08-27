@@ -8,6 +8,11 @@ export { makeRumPublicApi } from './boot/rumPublicApi'
 
 // 导出类型
 export type { RumPublicApi } from './boot/rumPublicApi'
-export type { RumInitConfiguration, RumConfiguration } from './domain/configuration/configuration'
+export type {
+  BeforeSamplingCallback,
+  BeforeSamplingContext,
+  RumInitConfiguration,
+  RumConfiguration,
+} from './domain/configuration/configuration'
 export type { RumEvent } from './rumEvent.types'
 export type { RawRumEvent } from './rawRumEvent.types'

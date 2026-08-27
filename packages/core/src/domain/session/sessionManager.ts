@@ -25,10 +25,24 @@ export interface SessionStore {
   clear: () => void
 }
 
+export interface SessionConfiguration {
+  sessionSampleRate: number
+  rcVersion: number
+  custom?: Record<string, unknown> | null
+}
+
+export interface BeforeSamplingContext {
+  readonly sessionSampleRate: number
+  readonly custom: Record<string, unknown> | null
+}
+
+export type BeforeSamplingCallback = (context: BeforeSamplingContext) => number | undefined
+
 export interface SessionManager {
   findSession: (time?: number) => SessionState | undefined
   findTrackedSession: (time?: number) => SessionState | undefined
   renew: () => SessionState
+  setForcedSession: () => void
   expand: () => void
   expire: () => void
 }
@@ -39,13 +53,16 @@ export function startSessionManager(
     trackAnonymousUser = true,
     sessionSampleRate = 100,
     getSessionConfiguration,
+    beforeSampling,
   }: {
     trackAnonymousUser?: boolean
     sessionSampleRate?: number
-    getSessionConfiguration?: () => { sessionSampleRate: number; rcVersion: number }
+    getSessionConfiguration?: () => SessionConfiguration
+    beforeSampling?: BeforeSamplingCallback
   } = {},
 ): SessionManager {
   let lastExpand = 0
+  let forceNextSession = false
   const sessionHistory = createValueHistory<SessionState>(() => now(), {
     expireDelay: SESSION_TIME_OUT_DELAY,
     maxEntries: SESSION_HISTORY_MAX_ENTRIES,
@@ -80,7 +97,7 @@ export function startSessionManager(
 
   function createSession(): SessionState {
     const time = now()
-    let currentConfiguration = { sessionSampleRate, rcVersion: 0 }
+    let currentConfiguration: SessionConfiguration = { sessionSampleRate, rcVersion: 0, custom: null }
     if (getSessionConfiguration) {
       try {
         currentConfiguration = getSessionConfiguration()
@@ -88,13 +105,30 @@ export function startSessionManager(
         // Keep initialization values when a dynamic provider fails.
       }
     }
+    let resolvedSessionSampleRate = currentConfiguration.sessionSampleRate
+    if (beforeSampling) {
+      try {
+        const overriddenRate = beforeSampling({
+          sessionSampleRate: resolvedSessionSampleRate,
+          custom: cloneCustom(currentConfiguration.custom || null),
+        })
+        if (isSampleRate(overriddenRate)) {
+          resolvedSessionSampleRate = overriddenRate
+        }
+      } catch {
+        // Host callbacks must never prevent a session from being created.
+      }
+    }
+
+    const isForced = forceNextSession
+    forceNextSession = false
     return {
       id: generateUUID(),
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
-      isTracked: performDraw(currentConfiguration.sessionSampleRate),
-      sessionSampleRate: currentConfiguration.sessionSampleRate,
+      isTracked: isForced || performDraw(resolvedSessionSampleRate),
+      sessionSampleRate: resolvedSessionSampleRate,
       rcVersion: currentConfiguration.rcVersion,
     }
   }
@@ -130,6 +164,9 @@ export function startSessionManager(
       lastExpand = now()
       return state
     },
+    setForcedSession: () => {
+      forceNextSession = true
+    },
     expand: () => {
       const t = now()
       if (t - lastExpand < EXPAND_THROTTLE) {
@@ -156,4 +193,24 @@ function cloneSessionState(state: SessionState): SessionState {
 
 function performDraw(sampleRate: number): boolean {
   return Math.random() * 100 < sampleRate
+}
+
+function isSampleRate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+}
+
+function cloneCustom(custom: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (custom === null) {
+    return null
+  }
+  try {
+    const cloned = JSON.parse(JSON.stringify(custom))
+    return isRecord(cloned) ? cloned : null
+  } catch {
+    return null
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

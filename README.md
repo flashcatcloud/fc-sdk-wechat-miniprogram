@@ -52,8 +52,8 @@ flashcatRum.init({
   service: "my-miniprogram",
   env: "production",
   version: "1.0.0",
-  // 可选：启用 RUM 远程会话采样配置
-  remoteConfiguration: true,
+  // 可选：启用 RUM 远程配置
+  remoteConfigurationEnabled: true,
 });
 
 App({
@@ -148,7 +148,8 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 | `env`               | string   | ❌   | -                        | 环境（dev/test/prod）                                                     |
 | `version`           | string   | ❌   | -                        | 应用版本号                                                                |
 | `sessionSampleRate` | number   | ❌   | 100                      | 会话采样率（0-100）                                                       |
-| `remoteConfiguration` | boolean | ❌ | false                    | 是否启用远程会话采样配置                                                  |
+| `remoteConfigurationEnabled` | boolean | ❌ | false             | 是否启用远程配置（会话采样率与 `custom`）                                 |
+| `beforeSampling`    | function | ❌   | -                        | 创建新 Session 前同步调整采样率                                           |
 | `flushInterval`     | number   | ❌   | 15000                    | 上报间隔（毫秒）                                                          |
 | `trackPages`        | boolean  | ❌   | true                     | 是否追踪页面                                                              |
 | `trackActions`      | boolean  | ❌   | true                     | 是否追踪用户交互                                                          |
@@ -158,9 +159,11 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 | `debug`             | boolean  | ❌   | false                    | 是否开启调试模式                                                          |
 | `beforeSend`        | function | ❌   | -                        | 数据过滤钩子                                                              |
 
-### 远程会话采样配置
+### 远程配置
 
-设置 `remoteConfiguration: true` 后，SDK 会在初始化时同步读取上次缓存的有效配置，并在初始化完成后异步请求一次 `/api/v2/rum/config`。配置请求不阻塞初始化和事件采集，也不会被记录为 RUM resource 或 error 事件。
+设置 `remoteConfigurationEnabled: true` 后，SDK 会在初始化时同步读取上次缓存的有效配置，并在初始化完成后异步请求一次 `/api/v2/rum/config`。配置请求不阻塞初始化和事件采集，也不会被记录为 RUM resource 或 error 事件。
+
+远程配置只消费两个字段：`rum.sessionSampleRate` 和顶层 `custom`；追踪采样率、回放采样率和隐私等级等字段会被忽略。
 
 会话采样只在创建 Session 时执行一次：
 
@@ -168,9 +171,60 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 - 没有缓存时，首个 Session 使用初始化的 `sessionSampleRate`；随后拉取到的新值只影响之后创建的 Session。
 - 当前 Session 不会因配置拉取成功而重新抽签。调用 `flashcatRum.stopSession()` 后，下一次事件创建的新 Session 会使用最新配置。
 - 配置接口不可用、响应非法或缓存不可读时，SDK 安全回退到初始化采样率，不影响正常采集。
-- 本期远程配置只支持 `sessionSampleRate`；追踪采样率、回放采样率和隐私等级等字段会被忽略。
 
 远程配置沿用现有 `site` 或 `proxy`。因此直连模式无需额外添加小程序合法域名；代理模式需确保现有代理同时转发 `/api/v2/rum/config`，并建议透传 ETag 以使用 `304 Not Modified`。SDK 只在初始化时拉取（失败时会进行有限重试），不会定时轮询，也不会在创建新 Session 时额外请求。
+
+#### 读取 custom
+
+服务端响应的顶层 `custom` 供宿主自行决策，不参与 RUM 事件字段：
+
+```javascript
+const custom = flashcatRum.getRemoteConfig();
+// 未启用远程配置、尚未拉取成功且无缓存、或服务端未下发 custom 时返回 undefined
+if (custom?.featureFlags?.newCart) {
+  // ...
+}
+```
+
+`custom` 只接受对象；非对象会被安全忽略，且不影响会话采样。每次调用都会返回一份副本，修改返回值不会影响 SDK 内部状态。旧版本写入的缓存仍可继续用于采样，只是 `getRemoteConfig()` 返回 `undefined`。
+
+`custom` 的生命周期与采样快照一致：200 响应中缺少 `custom` 会清除已有值，`304 Not Modified` 保留缓存值，服务端下发 `enabled: false` 会同时清除 `custom` 和本地缓存。
+
+#### 自定义采样决策
+
+`beforeSampling` 在创建新 Session、执行抽签之前同步调用，可以基于远程 `custom` 覆盖本次采样率：
+
+```javascript
+flashcatRum.init({
+  // ...
+  remoteConfigurationEnabled: true,
+  beforeSampling: ({ sessionSampleRate, custom }) => {
+    // 返回 0-100 的数字覆盖采样率；返回 undefined 表示不修改
+    if (custom?.vipUsers?.includes(getUserId())) {
+      return 100;
+    }
+    return sessionSampleRate;
+  },
+});
+```
+
+- `sessionSampleRate` 是本次将要使用的采样率：有远程值时为远程值，否则为初始化值。
+- `custom` 是远程 `custom` 的副本，没有时为 `null`。
+- 回调抛错、返回非有限数字或超出 `0-100` 范围时，回退到传入的 `sessionSampleRate`。
+
+#### 强制采集当前用户
+
+排障场景下可以用 `setForcedSession()` 让下一个 Session 必定被采集，无需修改采样率：
+
+```javascript
+flashcatRum.setForcedSession();
+flashcatRum.stopSession(); // 结束当前 Session，之后创建的新 Session 会被强制采集
+```
+
+- 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
+- 标记在 Session 创建后立即消耗，之后恢复常规抽样。
+- 优先级高于 `beforeSampling`：被标记的 Session 即使采样率为 0 也会被采集。
+- 初始化前调用会被保留到首个已创建 Session 之后的下一次 Session，不会追溯改变首个 Session。
 
 ## API 文档
 
@@ -194,7 +248,12 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 ### 会话管理
 
 - `flashcatRum.stopSession()` - 结束当前会话
+- `flashcatRum.setForcedSession()` - 标记下一个新建会话必定被采集
 - `flashcatRum.getInitConfiguration()` - 获取初始化配置
+
+### 远程配置
+
+- `flashcatRum.getRemoteConfig()` - 获取远程配置中的 `custom`，不可用时返回 `undefined`
 
 ## 调试
 

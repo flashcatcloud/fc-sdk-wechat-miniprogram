@@ -17,6 +17,8 @@ export interface Strategy {
   setUser: (context: Context) => void
   startPage: (name?: string) => void
   stopSession: () => void
+  setForcedSession: () => void
+  getRemoteConfig: () => Record<string, unknown> | undefined
   getInitConfiguration: () => RumInitConfiguration | undefined
 }
 
@@ -30,6 +32,8 @@ export interface RumPublicApi {
   setUser: (context: Context) => void
   startPage: (name?: string) => void
   stopSession: () => void
+  setForcedSession: () => void
+  getRemoteConfig: () => Record<string, unknown> | undefined
   getInitConfiguration: () => RumInitConfiguration | undefined
 }
 
@@ -48,6 +52,8 @@ export function makeRumPublicApi(): RumPublicApi {
       setUser: (context) => started.userContext.setContext(context),
       startPage: started.startPage,
       stopSession: () => started.sessionManager.expire(),
+      setForcedSession: started.sessionManager.setForcedSession,
+      getRemoteConfig: started.getRemoteConfig,
       getInitConfiguration: () => strategy.initConfiguration,
     }
     strategy = nextStrategy
@@ -64,6 +70,8 @@ export function makeRumPublicApi(): RumPublicApi {
     setUser: monitor((context) => strategy.setUser(context)),
     startPage: monitor((name) => strategy.startPage(name)),
     stopSession: monitor(() => strategy.stopSession()),
+    setForcedSession: monitor(() => strategy.setForcedSession()),
+    getRemoteConfig: monitor(() => strategy.getRemoteConfig()),
     getInitConfiguration: monitor(() => strategy.getInitConfiguration()),
   }
 
