@@ -173,7 +173,10 @@ test('enabled false clears cache and falls back to the initialization rate', () 
 
   response = { version: 8, enabled: false, rum: { sessionSampleRate: 0 } }
   controller.fetch(7)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  // Every knob goes back to the initialization value, but the version that switched it off is
+  // kept: it is what the next request echoes as applied_version, and without it the console cannot
+  // tell a client that took the kill switch from one that never heard about it.
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 8, custom: null })
   assert.equal(storage.size, 0)
   controller.stop()
 })
@@ -353,8 +356,52 @@ test('the kill switch clears custom together with the cache', () => {
   response = { version: 24, enabled: false }
   controller.fetch(23)
   assert.equal(controller.getRemoteConfig(), undefined)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 24, custom: null })
   assert.equal(storage.size, 0)
+  controller.stop()
+})
+
+test('a schema this build cannot read is a settled answer, not something to retry', () => {
+  // Told apart from an unreadable body on purpose: asking again would fetch the same refusal.
+  let requests = 0
+  const timers: Array<() => void> = []
+  const adapter = createAdapter((options) => {
+    requests += 1
+    options.success?.({ statusCode: 200, data: { schema_version: 2, version: 5, enabled: true, rum: {} } })
+  })
+  const controller = createRemoteConfigurationController(adapter, configuration(), {
+    setTimeout: (callback) => {
+      timers.push(callback)
+      return timers.length
+    },
+    clearTimeout: () => undefined,
+  })
+
+  controller.fetch()
+
+  assert.equal(requests, 1)
+  assert.equal(timers.length, 0, 'a refusal this definite must not be retried')
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  controller.stop()
+})
+
+test('one configuration request at a time, however many triggers arrive', () => {
+  // Start-up and a session renewal can land together on a cold start.
+  let requests = 0
+  let settle: (() => void) | undefined
+  const adapter = createAdapter((options) => {
+    requests += 1
+    settle = () => options.success?.({ statusCode: 200, data: { version: 3, enabled: true, rum: { sessionSampleRate: 9 } } })
+  })
+  const controller = createRemoteConfigurationController(adapter, configuration())
+
+  controller.fetch()
+  controller.fetch(0)
+  assert.equal(requests, 1, 'the second trigger must join the request already in flight')
+
+  settle?.()
+  controller.fetch(3)
+  assert.equal(requests, 2, 'once the first answer lands, the next trigger asks again')
   controller.stop()
 })
 

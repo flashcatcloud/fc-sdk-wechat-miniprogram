@@ -143,6 +143,17 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   const appliedVersion = sessionManager.findSession()?.rcVersion
   void Promise.resolve().then(() => remoteConfigurationController.fetch(appliedVersion))
 
+  // ...and again whenever a session is renewed. A miniprogram process routinely outlives a session:
+  // it is backgrounded and foregrounded for hours without a cold onLaunch, so a launch-only fetch
+  // would leave every later session in that process drawing against whatever the configuration was
+  // when the app first opened. The response lands for the session AFTER this one, which is exactly
+  // the "takes effect at the next new session" semantics the console promises. The controller
+  // ignores a call while one is already in flight.
+  const remoteConfigRenewalSubscription = lifeCycle.subscribe(
+    LifeCycleEventType.SESSION_RENEWED,
+    ({ session }) => remoteConfigurationController.fetch(session.rcVersion),
+  )
+
   return {
     lifeCycle,
     sessionManager,
@@ -183,6 +194,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
       stopRequestObservable()
       rumBatch.stop()
       rumAssembly.stop()
+      remoteConfigRenewalSubscription.unsubscribe()
       remoteConfigurationController.stop()
       requestCollection?.stop()
       actionCollection?.stop()

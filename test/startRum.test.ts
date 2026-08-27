@@ -230,6 +230,51 @@ test('remote sampling keeps the current session and applies after stopSession', 
   started.stop()
 })
 
+test('asks the console again when a session is renewed', async () => {
+  // A miniprogram process routinely outlives a session: backgrounded and foregrounded for hours
+  // without a cold onLaunch. Asking only at start-up would leave every later session in that
+  // process drawing against whatever the configuration was when the app first opened, which is
+  // the one promise the whole feature makes.
+  const adapter = createAdapter()
+  const configRequests: RequestOptions[] = []
+  adapter.request = (options: RequestOptions) => {
+    if (options.url.includes('/api/v2/rum/config')) {
+      configRequests.push(options)
+    }
+    return { abort: () => undefined }
+  }
+
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    sessionSampleRate: 100,
+    remoteConfigurationEnabled: true,
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  const started = startRum(configuration, adapter)
+
+  await Promise.resolve()
+  assert.equal(configRequests.length, 1)
+  configRequests[0].success?.({
+    statusCode: 200,
+    data: { version: 4, enabled: true, rum: { sessionSampleRate: 100 } },
+  })
+
+  started.sessionManager.expire()
+  started.addCustomEvent('draws-a-new-session')
+
+  assert.equal(configRequests.length, 2, 'a renewed session must ask for the configuration again')
+  assert.ok(
+    configRequests[1].url.includes('applied_version=4'),
+    'the new request reports the version the renewed session was drawn under'
+  )
+
+  started.stop()
+})
+
 test('startRum does not request remote configuration when it is disabled', async () => {
   const adapter = createAdapter()
   const requests: RequestOptions[] = []
