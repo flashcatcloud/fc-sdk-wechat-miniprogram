@@ -6,6 +6,13 @@ import type { RumConfiguration } from './configuration'
 const CONFIG_PATH = '/api/v2/rum/config'
 const CACHE_FORMAT_VERSION = 1
 const REQUEST_TIMEOUT = 10_000
+
+// How long past the platform's own timeout a request is still considered in flight. The timeout
+// above is an option handed to the host, and nothing guarantees it answers at all: a request whose
+// success and fail callbacks both go missing would otherwise hold the guard for the life of the
+// process, and every later session renewal would be dropped without a sound. Expiring the guard by
+// the clock costs no timer and needs no cancelling — the next session renewal simply asks again.
+const IN_FLIGHT_MAX_MS = REQUEST_TIMEOUT + 5_000
 const RETRY_DELAYS = [5_000, 60_000]
 
 export const REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX = '_fc_rum_remote_config_v1_'
@@ -69,8 +76,13 @@ export function createRemoteConfigurationController(
   let stopped = false
   // One chain at a time. Init and every session renewal ask for the configuration, and those two
   // can land together on a cold start, so without this the very first thing a launch does is send
-  // the same request twice.
-  let inFlight = false
+  // the same request twice. Held as the moment it started rather than as a flag, so a chain whose
+  // callbacks never arrive stops blocking the next trigger instead of blocking every one after it.
+  let inFlightSince: number | undefined
+
+  function inFlight(): boolean {
+    return inFlightSince !== undefined && Date.now() - inFlightSince < IN_FLIGHT_MAX_MS
+  }
   const retryTimers = new Set<unknown>()
 
   const endpoint = safelyCreateEndpoint(configuration)
@@ -159,18 +171,18 @@ export function createRemoteConfigurationController(
     currentSnapshot = { ...initialSnapshot, rcVersion: version }
     etag = undefined
     hasRemoteSnapshot = false
-    clearCache()
-    try {
-      adapter.removeStorageSync(cacheIndexKey)
-    } catch {
-      // Storage is an optimization only.
-    }
+    // Written, not cleared. Every knob is already back at its initialization value, so there is
+    // nothing stale to resurrect; what survives is the version that switched the channel off. A
+    // miniprogram process is killed and restarted far more readily than an app, and a client that
+    // dropped the version on restart would report none at all — indistinguishable, to the console,
+    // from one that never heard about the change.
+    persist(currentSnapshot)
   }
 
   function scheduleRetry(appliedVersion: number | undefined, retryIndex: number) {
     if (stopped || retryIndex >= RETRY_DELAYS.length) {
       // The chain is over: release the guard so the next session renewal can ask again.
-      inFlight = false
+      inFlightSince = undefined
       return
     }
     const jitter = 0.8 + random() * 0.4
@@ -184,13 +196,13 @@ export function createRemoteConfigurationController(
     } catch {
       // Timer failures are isolated like request and storage failures. Nothing will call back, so
       // the chain ends here.
-      inFlight = false
+      inFlightSince = undefined
     }
   }
 
   /** The chain reached an answer it will not retry. */
   function finish() {
-    inFlight = false
+    inFlightSince = undefined
   }
 
   function request(appliedVersion: number | undefined, retryIndex: number) {
@@ -298,20 +310,20 @@ export function createRemoteConfigurationController(
       return custom || undefined
     },
     fetch: (appliedVersion) => {
-      if (inFlight) {
+      if (inFlight()) {
         return
       }
-      inFlight = true
+      inFlightSince = Date.now()
       try {
         request(appliedVersion, 0)
       } catch {
         // URL builders and platform adapters are host code and may throw.
-        inFlight = false
+        inFlightSince = undefined
       }
     },
     stop: () => {
       stopped = true
-      inFlight = false
+      inFlightSince = undefined
       retryTimers.forEach((timer) => {
         try {
           cancelTimeout(timer)

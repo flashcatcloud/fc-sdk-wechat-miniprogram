@@ -177,7 +177,16 @@ test('enabled false clears cache and falls back to the initialization rate', () 
   // kept: it is what the next request echoes as applied_version, and without it the console cannot
   // tell a client that took the kill switch from one that never heard about it.
   assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 8, custom: null })
-  assert.equal(storage.size, 0)
+  // And it is written, not merely held: a miniprogram process is reclaimed readily, and a version
+  // that lived only in memory would be gone on the next launch — leaving the console unable to tell
+  // this client from one that never heard about the change.
+  const relaunched = createRemoteConfigurationController(
+    createAdapter(() => undefined, storage),
+    configuration(),
+  )
+  assert.equal(relaunched.getSessionConfiguration().rcVersion, 8, 'the version survives a relaunch')
+  assert.equal(relaunched.getSessionConfiguration().sessionSampleRate, 73, 'the knobs stay at initialization')
+  relaunched.stop()
   controller.stop()
 })
 
@@ -357,7 +366,6 @@ test('the kill switch clears custom together with the cache', () => {
   controller.fetch(23)
   assert.equal(controller.getRemoteConfig(), undefined)
   assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 24, custom: null })
-  assert.equal(storage.size, 0)
   controller.stop()
 })
 
