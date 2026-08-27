@@ -502,9 +502,9 @@ test('sessionManager logs the resolved sessionSampleRate when debug is enabled',
   }
 
   assert.deepEqual(logs, [
-    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 40],
-    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 12],
-    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 88],
-    ['[FlashCat RUM SDK][Debug] Using sessionSampleRate', 67],
+    ['[FlashCat RUM][Debug] Using sessionSampleRate', 40],
+    ['[FlashCat RUM][Debug] Using sessionSampleRate', 12],
+    ['[FlashCat RUM][Debug] Using sessionSampleRate', 88],
+    ['[FlashCat RUM][Debug] Using sessionSampleRate', 67],
   ])
 })

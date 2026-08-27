@@ -93,7 +93,7 @@ export function startSessionManager(
     sessionHistory.add(cloneSessionState(initialSession), initialSession.created)
     if (debug) {
       try {
-        console.log('[FlashCat RUM SDK][Debug] Using sessionSampleRate', initialSession.sessionSampleRate)
+        console.log('[FlashCat RUM][Debug] Using sessionSampleRate', initialSession.sessionSampleRate)
       } catch {
         // Console implementations are host code and must not affect session restore.
       }
