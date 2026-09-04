@@ -4,7 +4,7 @@ export interface RequestOptions {
   data?: unknown
   header?: Record<string, string>
   timeout?: number
-  success?: (res: { statusCode: number; data?: unknown }) => void
+  success?: (res: { statusCode: number; data?: unknown; header?: Record<string, string> }) => void
   fail?: (error: { errMsg: string }) => void
   complete?: () => void
 }

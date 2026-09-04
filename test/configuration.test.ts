@@ -130,3 +130,21 @@ test('validateAndBuildConfiguration creates endpointBuilder', () => {
   assert.ok(result.endpointBuilder)
   assert.ok(result.endpointBuilder.urlPrefix)
 })
+
+test('validateAndBuildConfiguration defaults remoteConfigurationEnabled to false', () => {
+  const result = validateAndBuildConfiguration({ clientToken: 'token', applicationId: 'app' })
+
+  assert.ok(result)
+  assert.equal(result.remoteConfigurationEnabled, false)
+})
+
+test('validateAndBuildConfiguration enables remoteConfigurationEnabled explicitly', () => {
+  const result = validateAndBuildConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    remoteConfigurationEnabled: true,
+  })
+
+  assert.ok(result)
+  assert.equal(result.remoteConfigurationEnabled, true)
+})

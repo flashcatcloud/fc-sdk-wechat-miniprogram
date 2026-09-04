@@ -1,5 +1,5 @@
 import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
-import type { SessionManager, SessionState, SessionStore } from '@flashcatcloud/miniprogram-core'
+import type { SessionConfiguration, SessionManager, SessionState, SessionStore } from '@flashcatcloud/miniprogram-core'
 import { startSessionManager } from '@flashcatcloud/miniprogram-core'
 import type { RumConfiguration } from './configuration/configuration'
 
@@ -23,9 +23,16 @@ export function createSessionStore(adapter: PlatformAdapter): SessionStore {
   }
 }
 
-export function startRumSessionManager(adapter: PlatformAdapter, configuration: RumConfiguration): SessionManager {
+export function startRumSessionManager(
+  adapter: PlatformAdapter,
+  configuration: RumConfiguration,
+  getSessionConfiguration?: () => SessionConfiguration,
+): SessionManager {
   return startSessionManager(createSessionStore(adapter), {
     trackAnonymousUser: configuration.trackAnonymousUser,
     sessionSampleRate: configuration.sessionSampleRate,
+    getSessionConfiguration,
+    beforeSampling: configuration.beforeSampling,
+    debug: configuration.debug,
   })
 }

@@ -7,3 +7,4 @@ export function getDefaultAdapter(): PlatformAdapter {
 
 export type { PlatformAdapter } from './types'
 export type { RequestOptions, RequestTask, StorageOptions } from './types'
+export { markInternalRequest } from './internalRequest'

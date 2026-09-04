@@ -28,6 +28,13 @@ export interface InitConfiguration {
   version?: string
   debug?: boolean // 是否开启调试模式
   trackAnonymousUser?: boolean
+  /**
+   * Whether the console may set the sampling configuration remotely. When off —
+   * the default — nothing is read from the cache and no configuration request is
+   * ever made.
+   * @default false
+   */
+  remoteConfigurationEnabled?: boolean
 }
 
 export interface Configuration {
@@ -42,6 +49,7 @@ export interface Configuration {
   version?: string
   debug: boolean
   trackAnonymousUser: boolean
+  remoteConfigurationEnabled: boolean
 }
 
 export function validateAndBuildConfiguration(initConfiguration: InitConfiguration): Configuration | undefined {
@@ -58,6 +66,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
   const flushInterval = initConfiguration.flushInterval ?? 15000
   const debug = initConfiguration.debug ?? false
   const trackAnonymousUser = initConfiguration.trackAnonymousUser ?? true
+  const remoteConfigurationEnabled = initConfiguration.remoteConfigurationEnabled ?? false
 
   const configurationTags = buildTags(initConfiguration)
   const endpointBuilder = createEndpointBuilder(initConfiguration, 'rum', configurationTags)
@@ -74,6 +83,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
     version: initConfiguration.version,
     debug,
     trackAnonymousUser,
+    remoteConfigurationEnabled,
   }
 
   if (debug) {
@@ -89,6 +99,7 @@ export function validateAndBuildConfiguration(initConfiguration: InitConfigurati
       sessionSampleRate: config.sessionSampleRate,
       flushInterval: `${config.flushInterval}ms`,
       trackAnonymousUser: config.trackAnonymousUser,
+      remoteConfigurationEnabled: config.remoteConfigurationEnabled,
     })
   }
 

@@ -125,18 +125,23 @@ export function startRumAssembly({
     // Current view events keep the existing renewal boundary behavior: a missing current session creates a new view.
     // Historical view updates and non-view events use event time so delayed work stays aligned with its original context.
     const shouldUseEventTimeForSession = rawEvent.type !== 'view' || (rawView?.id && rawView.id !== currentPage?.id)
-    let session = sessionManager.findTrackedSession(shouldUseEventTimeForSession ? eventTime : undefined)
+    let session = sessionManager.findSession(shouldUseEventTimeForSession ? eventTime : undefined)
     if (!session) {
       session = sessionManager.renew()
+      lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
       if (session.isTracked === false) {
         return
       }
-      lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
       if (rawEvent.type === 'view') {
         return
       }
     }
     sessionManager.expand()
+    // A sampled-out session is still a valid session. Keep it alive until it
+    // expires, but never emit its events or perform another sampling draw.
+    if (session.isTracked === false) {
+      return
+    }
     const page = findPage?.(eventTime) || currentPage
     const pageName = page?.name || 'unknown'
     const usr = userContext.getContext()
@@ -147,8 +152,22 @@ export function startRumAssembly({
       usr.anonymous_id = session.anonymousId
     }
 
+    const lockedRawEvent: RawRumEvent = rawEvent.type === 'view'
+      ? {
+          ...rawEvent,
+          _dd: {
+            ...rawEvent._dd,
+            configuration: {
+              ...rawEvent._dd.configuration,
+              session_sample_rate: session.sessionSampleRate ?? configuration.sessionSampleRate,
+              rc_version: session.rcVersion ?? 0,
+            },
+          },
+        }
+      : rawEvent
+
     const rumEvent: RumEvent = {
-      ...rawEvent,
+      ...lockedRawEvent,
       service: configuration.service,
       version: configuration.version,
       application: { id: configuration.applicationId },

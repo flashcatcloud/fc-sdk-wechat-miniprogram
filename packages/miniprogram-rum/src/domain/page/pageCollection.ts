@@ -24,6 +24,7 @@ export function startPageCollection(
   pageObservable: Observable<PageEvent>,
   configuration: RumConfiguration,
   appObservable?: Observable<AppEvent>,
+  isSessionTracked: () => boolean = () => true,
 ) {
   let currentPage: PageHistoryEntry | undefined
   const pageHistory = createValueHistory<PageHistoryEntry>(() => Date.now(), {
@@ -32,6 +33,9 @@ export function startPageCollection(
   })
   const pageContextManager = new PageContextManager()
   const eventCountsTracker = new EventCountsTracker(lifeCycle, (event) => pageHistory.find(event.date)?.value, (page) => {
+    if (page.isTracked === false) {
+      return
+    }
     if (page === currentPage && page.updateIntervalId) {
       return
     }
@@ -79,6 +83,9 @@ export function startPageCollection(
   }
 
   function emitViewUpdate(page: PageHistoryEntry, overrides: Partial<RawRumViewEvent['view']> = {}) {
+    if (page.isTracked === false) {
+      return
+    }
     lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
       date: page.startTime,
       type: 'view',
@@ -153,6 +160,9 @@ export function startPageCollection(
   }
 
   function schedulePageUpdate(page: PageHistoryEntry) {
+    if (page.isTracked === false) {
+      return undefined
+    }
     return setInterval(() => {
       if (!page) {
         return
@@ -223,6 +233,10 @@ export function startPageCollection(
       return
     }
     addPageState(page, 'active', time)
+    if (page.isTracked === false) {
+      resumeForeground(page, time)
+      return
+    }
     mergeViewMetrics(page, {
       time_spent: toServerDuration(getForegroundDuration(page, time)),
       is_active: true,
@@ -291,6 +305,7 @@ export function startPageCollection(
       id: generateUUID(),
       name: previousPage.name,
       startTime: session.created,
+      isTracked: session.isTracked !== false,
       referrer: previousPage.referrer,
       loadingType: previousPage.loadingType,
       documentVersion: 0,
@@ -301,6 +316,9 @@ export function startPageCollection(
 
     if (session.created - previousPage.startTime < PAGE_HISTORY_EXPIRE_DELAY) {
       emitPageHidden(previousPage, session.created, 'terminated')
+    }
+    if (session.isTracked === false) {
+      return
     }
     emitViewUpdate(renewedPage)
     renewedPage.updateIntervalId = schedulePageUpdate(renewedPage)
@@ -315,6 +333,7 @@ export function startPageCollection(
         id: generateUUID(),
         name: event.route || 'unknown',
         startTime: event.time,
+        isTracked: isSessionTracked(),
         loadTime: event.time,
         referrer: pageContextManager.getReferrer(),
         loadingType: pageContextManager.getLoadingType(),
@@ -360,6 +379,7 @@ export function startPageCollection(
         id: generateUUID(),
         name: event.route || 'unknown',
         startTime: event.time,
+        isTracked: isSessionTracked(),
         showTime: event.time,
         referrer: pageContextManager.getReferrer(),
         loadingType: pageContextManager.getLoadingType(),
@@ -429,6 +449,7 @@ export function startPageCollection(
         id: generateUUID(),
         name,
         startTime,
+        isTracked: isSessionTracked(),
         referrer: pageContextManager.getReferrer(),
         loadingType: pageContextManager.getLoadingType(),
         documentVersion: 0,

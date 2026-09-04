@@ -54,6 +54,16 @@ for (const packageInfo of packages) {
   }
 }
 
+const sdkVersionPath = path.join(__dirname, '../../packages/core/src/domain/configuration/sdkVersion.ts')
+const sdkVersionSource = fs.readFileSync(sdkVersionPath, 'utf8')
+const sdkVersionMatch = sdkVersionSource.match(/SDK_VERSION = '([^']+)'/)
+if (!sdkVersionMatch) {
+  fail(`${sdkVersionPath}: unable to find SDK_VERSION`)
+}
+if (sdkVersionMatch[1] !== releaseVersion) {
+  fail(`${sdkVersionPath}: expected SDK_VERSION ${releaseVersion}, got ${sdkVersionMatch[1]}`)
+}
+
 console.log(`Release check passed for ${releaseVersion}`)
 
 function checkPackageEntry(packageDirectory, packageJson, field) {

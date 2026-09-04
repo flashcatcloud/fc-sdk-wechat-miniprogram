@@ -13,6 +13,12 @@ export interface SessionState {
   expireAt: number
   anonymousId?: string
   isTracked?: boolean
+  /** Whether this session consumed the one-shot forced-session marker. */
+  isForced?: boolean
+  /** The sampling rate used for this session's single draw. */
+  sessionSampleRate?: number
+  /** The remote configuration version applied when this session was created. */
+  rcVersion?: number
 }
 
 export interface SessionStore {
@@ -21,18 +27,46 @@ export interface SessionStore {
   clear: () => void
 }
 
+export interface SessionConfiguration {
+  sessionSampleRate: number
+  rcVersion: number
+  custom?: Record<string, unknown> | null
+}
+
+export interface BeforeSamplingContext {
+  readonly sessionSampleRate: number
+  readonly custom: Record<string, unknown> | null
+}
+
+export type BeforeSamplingCallback = (context: BeforeSamplingContext) => number | undefined
+
 export interface SessionManager {
+  findSession: (time?: number) => SessionState | undefined
   findTrackedSession: (time?: number) => SessionState | undefined
   renew: () => SessionState
+  setForcedSession: () => void
   expand: () => void
   expire: () => void
 }
 
 export function startSessionManager(
   store: SessionStore,
-  { trackAnonymousUser = true, sessionSampleRate = 100 }: { trackAnonymousUser?: boolean; sessionSampleRate?: number } = {},
+  {
+    trackAnonymousUser = true,
+    sessionSampleRate = 100,
+    getSessionConfiguration,
+    beforeSampling,
+    debug = false,
+  }: {
+    trackAnonymousUser?: boolean
+    sessionSampleRate?: number
+    getSessionConfiguration?: () => SessionConfiguration
+    beforeSampling?: BeforeSamplingCallback
+    debug?: boolean
+  } = {},
 ): SessionManager {
   let lastExpand = 0
+  let forceNextSession = false
   const sessionHistory = createValueHistory<SessionState>(() => now(), {
     expireDelay: SESSION_TIME_OUT_DELAY,
     maxEntries: SESSION_HISTORY_MAX_ENTRIES,
@@ -40,7 +74,32 @@ export function startSessionManager(
   const initialSession = store.get()
 
   if (initialSession) {
+    let wasMigrated = false
+    // Sessions written by older SDK versions did not persist these fields. Lock
+    // them to the init value so an SDK upgrade cannot change an active draw.
+    if (initialSession.sessionSampleRate === undefined) {
+      initialSession.sessionSampleRate = sessionSampleRate
+      wasMigrated = true
+    }
+    if (initialSession.rcVersion === undefined) {
+      initialSession.rcVersion = 0
+      wasMigrated = true
+    }
+    if (wasMigrated) {
+      try {
+        store.set(initialSession)
+      } catch {
+        // A storage failure must not prevent the in-memory session from being used.
+      }
+    }
     sessionHistory.add(cloneSessionState(initialSession), initialSession.created)
+    if (debug) {
+      try {
+        console.log('[FlashCat RUM][Debug] Using sessionSampleRate', initialSession.sessionSampleRate)
+      } catch {
+        // Console implementations are host code and must not affect session restore.
+      }
+    }
   }
 
   function isExpiredAt(state: SessionState, time: number) {
@@ -49,29 +108,71 @@ export function startSessionManager(
 
   function createSession(): SessionState {
     const time = now()
+    let currentConfiguration: SessionConfiguration = { sessionSampleRate, rcVersion: 0, custom: null }
+    if (getSessionConfiguration) {
+      try {
+        currentConfiguration = getSessionConfiguration()
+      } catch {
+        // Keep initialization values when a dynamic provider fails.
+      }
+    }
+    let resolvedSessionSampleRate = currentConfiguration.sessionSampleRate
+    if (beforeSampling) {
+      try {
+        const overriddenRate = beforeSampling({
+          sessionSampleRate: resolvedSessionSampleRate,
+          custom: cloneCustom(currentConfiguration.custom || null),
+        })
+        if (isSampleRate(overriddenRate)) {
+          resolvedSessionSampleRate = overriddenRate
+        }
+      } catch {
+        // Host callbacks must never prevent a session from being created.
+      }
+    }
+
+    const isForced = forceNextSession
+    forceNextSession = false
+    const isTracked = isForced || performDraw(resolvedSessionSampleRate)
+    if (debug) {
+      try {
+        console.log('[FlashCat RUM][Debug] Using sessionSampleRate', resolvedSessionSampleRate)
+      } catch {
+        // Console implementations are host code and must not affect session creation.
+      }
+    }
     return {
       id: generateUUID(),
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
-      isTracked: performDraw(sessionSampleRate),
+      isTracked,
+      isForced,
+      sessionSampleRate: resolvedSessionSampleRate,
+      rcVersion: currentConfiguration.rcVersion,
     }
   }
 
+  function findSession(time?: number): SessionState | undefined {
+    if (time !== undefined) {
+      const historicalSession = sessionHistory.find(time)?.value
+      if (historicalSession && !isExpiredAt(historicalSession, time)) {
+        return historicalSession
+      }
+      return undefined
+    }
+    const state = store.get()
+    if (!state || isExpiredAt(state, now())) {
+      return undefined
+    }
+    return state
+  }
+
   return {
+    findSession,
     findTrackedSession: (time) => {
-      if (time !== undefined) {
-        const historicalSession = sessionHistory.find(time)?.value
-        if (historicalSession && historicalSession.isTracked !== false && !isExpiredAt(historicalSession, time)) {
-          return historicalSession
-        }
-        return undefined
-      }
-      const state = store.get()
-      if (!state) {
-        return undefined
-      }
-      if (state.isTracked === false || isExpiredAt(state, now())) {
+      const state = findSession(time)
+      if (!state || state.isTracked === false) {
         return undefined
       }
       return state
@@ -82,6 +183,9 @@ export function startSessionManager(
       sessionHistory.add(cloneSessionState(state), state.created)
       lastExpand = now()
       return state
+    },
+    setForcedSession: () => {
+      forceNextSession = true
     },
     expand: () => {
       const t = now()
@@ -109,4 +213,24 @@ function cloneSessionState(state: SessionState): SessionState {
 
 function performDraw(sampleRate: number): boolean {
   return Math.random() * 100 < sampleRate
+}
+
+function isSampleRate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100
+}
+
+function cloneCustom(custom: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (custom === null) {
+    return null
+  }
+  try {
+    const cloned = JSON.parse(JSON.stringify(custom))
+    return isRecord(cloned) ? cloned : null
+  } catch {
+    return null
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

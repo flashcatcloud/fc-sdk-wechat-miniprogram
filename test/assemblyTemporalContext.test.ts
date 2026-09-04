@@ -6,7 +6,7 @@ import { LifeCycle, LifeCycleEventType } from '../packages/miniprogram-rum/src/d
 import { startPageCollection } from '../packages/miniprogram-rum/src/domain/page/pageCollection'
 import { startRumAssembly } from '../packages/miniprogram-rum/src/domain/assembly'
 import type { PageEvent, PlatformAdapter } from '../packages/miniprogram-platform/src'
-import type { RawRumErrorEvent, RawRumResourceEvent } from '../packages/miniprogram-rum/src/rawRumEvent.types'
+import type { RawRumErrorEvent, RawRumResourceEvent, RawRumViewEvent } from '../packages/miniprogram-rum/src/rawRumEvent.types'
 import type { RumConfiguration } from '../packages/miniprogram-rum/src/domain/configuration/configuration'
 import type { RumEvent } from '../packages/miniprogram-rum/src/rumEvent.types'
 
@@ -102,6 +102,102 @@ test('assembly adds configured service and version to rum events', () => {
     assert.equal(errorEvent.version, '1.0.1')
   } finally {
     setupResult.stop()
+    ;(globalThis as any).getCurrentPages = originalGetCurrentPages
+  }
+})
+
+test('assembly notifies once for a sampled-out session without drawing again', () => {
+  const originalNow = Date.now
+  Date.now = () => 1_000
+  const lifeCycle = new LifeCycle()
+  let configurationReads = 0
+  const sessionManager = startSessionManager(createStore(), {
+    getSessionConfiguration: () => {
+      configurationReads += 1
+      return { sessionSampleRate: 0, rcVersion: 4 }
+    },
+  })
+  let renewals = 0
+  const collected: RumEvent[] = []
+  const assembly = startRumAssembly({
+    lifeCycle,
+    configuration,
+    sessionManager,
+    globalContext: createContextManager(),
+    userContext: createContextManager(),
+    getCurrentPage: () => undefined,
+    adapter,
+  })
+  lifeCycle.subscribe(LifeCycleEventType.SESSION_RENEWED, () => {
+    renewals += 1
+  })
+  lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+  try {
+    for (const name of ['first', 'second']) {
+      lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+        date: 1_000,
+        type: 'custom',
+        event: { id: name, name },
+      })
+    }
+
+    assert.equal(sessionManager.findSession()?.isTracked, false)
+    assert.equal(configurationReads, 1)
+    assert.equal(renewals, 1)
+    assert.equal(collected.length, 0)
+  } finally {
+    assembly.stop()
+    Date.now = originalNow
+  }
+})
+
+test('view configuration uses the sampling rate and remote version locked to its session', () => {
+  const originalGetCurrentPages = (globalThis as any).getCurrentPages
+  ;(globalThis as any).getCurrentPages = () => [{ route: 'pages/a/index' }]
+
+  const lifeCycle = new LifeCycle()
+  const sessionManager = startSessionManager(createStore(), {
+    getSessionConfiguration: () => ({ sessionSampleRate: 100, rcVersion: 7 }),
+  })
+  const session = sessionManager.renew()
+  session.sessionSampleRate = 42
+  const collected: RumEvent[] = []
+  const assembly = startRumAssembly({
+    lifeCycle,
+    configuration,
+    sessionManager,
+    globalContext: createContextManager(),
+    userContext: createContextManager(),
+    getCurrentPage: () => ({ id: 'view-id', name: 'pages/a/index', startTime: session.created }),
+    adapter,
+  })
+  lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+  try {
+    lifeCycle.notify(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, {
+      date: session.created,
+      type: 'view',
+      _dd: {
+        document_version: 1,
+        format_version: 2,
+        configuration: {
+          session_sample_rate: 100,
+          session_replay_sample_rate: 0,
+          start_session_replay_recording_manually: false,
+        },
+      },
+      view: { id: 'view-id', url: 'pages/a/index', name: 'pages/a/index' },
+    } as RawRumViewEvent)
+
+    const viewEvent = collected[0]
+    assert.equal(viewEvent.type, 'view')
+    if (viewEvent.type === 'view') {
+      assert.equal(viewEvent._dd.configuration.session_sample_rate, 42)
+      assert.equal(viewEvent._dd.configuration.rc_version, 7)
+    }
+  } finally {
+    assembly.stop()
     ;(globalThis as any).getCurrentPages = originalGetCurrentPages
   }
 })

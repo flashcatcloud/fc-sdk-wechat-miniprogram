@@ -15,6 +15,7 @@ import { startRumBatch } from '../transport/startRumBatch'
 import { LifeCycleEventType } from '../domain/lifeCycle'
 import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { PageCollection } from '../domain/page/pageCollection'
+import { createRemoteConfigurationController } from '../domain/configuration/remoteConfiguration'
 
 const noopPageCollection: PageCollection = {
   stop: () => undefined,
@@ -26,13 +27,28 @@ const noopPageCollection: PageCollection = {
 export function startRum(configuration: RumConfiguration, adapter: PlatformAdapter) {
   const lifeCycle = new LifeCycle()
 
-  const sessionManager = startRumSessionManager(adapter, configuration)
-  if (!sessionManager.findTrackedSession()) {
+  const remoteConfigurationController = createRemoteConfigurationController(adapter, configuration)
+  const sessionManager = startRumSessionManager(
+    adapter,
+    configuration,
+    remoteConfigurationController.getSessionConfiguration,
+  )
+  if (!sessionManager.findSession()) {
     sessionManager.renew()
   }
+  remoteConfigurationController.setSessionSampleRateChangeHandler(() => {
+    const currentSession = sessionManager.findSession()
+    if (!currentSession || currentSession.isForced === true) {
+      return
+    }
+    // Crossing the zero boundary is the only remote update that interrupts a live session.
+    // The next event creates a session against the newly committed configuration.
+    sessionManager.expire()
+  })
 
   if (configuration.debug) {
     console.log('[FlashCat RUM][Debug] RUM monitoring started', {
+      sessionSampleRate: sessionManager.findSession()?.sessionSampleRate,
       trackPages: configuration.trackPages,
       trackActions: configuration.trackActions,
       trackRequests: configuration.trackRequests,
@@ -66,7 +82,13 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   })
 
   const pageCollection = configuration.trackPages
-    ? startPageCollection(lifeCycle, pageObservable, configuration, appObservable)
+    ? startPageCollection(
+        lifeCycle,
+        pageObservable,
+        configuration,
+        appObservable,
+        () => sessionManager.findSession()?.isTracked !== false,
+      )
     : noopPageCollection
   const requestCollection = configuration.trackRequests
     ? startRequestCollection(lifeCycle, requestObservable)
@@ -131,9 +153,24 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
 
   const rumBatch = startRumBatch(configuration, lifeCycle, adapter, appObservable)
 
+  // Fetch on the next microtask so public initialization can complete first.
+  // The request is marked as internal and never blocks event collection.
+  const appliedVersion = sessionManager.findSession()?.rcVersion
+  void Promise.resolve().then(() => remoteConfigurationController.fetch(appliedVersion))
+
+  // ...and again whenever a session is renewed. A miniprogram process routinely outlives a session,
+  // so a launch-only fetch would leave every later session on stale configuration. Positive-rate
+  // changes apply to a later session; crossing zero expires the current non-forced session after
+  // the response is committed. The controller ignores a call while a request chain is active.
+  const remoteConfigRenewalSubscription = lifeCycle.subscribe(
+    LifeCycleEventType.SESSION_RENEWED,
+    ({ session }) => remoteConfigurationController.fetch(session.rcVersion),
+  )
+
   return {
     lifeCycle,
     sessionManager,
+    getRemoteConfig: remoteConfigurationController.getRemoteConfig,
     globalContext,
     userContext,
     addAction: actionCollection?.addAction || (() => undefined),
@@ -170,6 +207,8 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
       stopRequestObservable()
       rumBatch.stop()
       rumAssembly.stop()
+      remoteConfigRenewalSubscription.unsubscribe()
+      remoteConfigurationController.stop()
       requestCollection?.stop()
       actionCollection?.stop()
       performanceCollection?.stop()

@@ -4,6 +4,8 @@ export interface PageHistoryEntry {
   id: string
   name: string
   startTime: number
+  /** Whether the session owning this page was selected for collection. */
+  isTracked?: boolean
   loadTime?: number
   showTime?: number
   referrer?: string
