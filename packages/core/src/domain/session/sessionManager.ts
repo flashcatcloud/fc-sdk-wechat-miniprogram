@@ -13,6 +13,8 @@ export interface SessionState {
   expireAt: number
   anonymousId?: string
   isTracked?: boolean
+  /** Whether this session consumed the one-shot forced-session marker. */
+  isForced?: boolean
   /** The sampling rate used for this session's single draw. */
   sessionSampleRate?: number
   /** The remote configuration version applied when this session was created. */
@@ -145,6 +147,7 @@ export function startSessionManager(
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
       isTracked,
+      isForced,
       sessionSampleRate: resolvedSessionSampleRate,
       rcVersion: currentConfiguration.rcVersion,
     }

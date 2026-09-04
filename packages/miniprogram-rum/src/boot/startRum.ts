@@ -36,6 +36,15 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   if (!sessionManager.findSession()) {
     sessionManager.renew()
   }
+  remoteConfigurationController.setSessionSampleRateChangeHandler(() => {
+    const currentSession = sessionManager.findSession()
+    if (!currentSession || currentSession.isForced === true) {
+      return
+    }
+    // Crossing the zero boundary is the only remote update that interrupts a live session.
+    // The next event creates a session against the newly committed configuration.
+    sessionManager.expire()
+  })
 
   if (configuration.debug) {
     console.log('[FlashCat RUM][Debug] RUM monitoring started', {
@@ -73,7 +82,13 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   })
 
   const pageCollection = configuration.trackPages
-    ? startPageCollection(lifeCycle, pageObservable, configuration, appObservable)
+    ? startPageCollection(
+        lifeCycle,
+        pageObservable,
+        configuration,
+        appObservable,
+        () => sessionManager.findSession()?.isTracked !== false,
+      )
     : noopPageCollection
   const requestCollection = configuration.trackRequests
     ? startRequestCollection(lifeCycle, requestObservable)
@@ -143,12 +158,10 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   const appliedVersion = sessionManager.findSession()?.rcVersion
   void Promise.resolve().then(() => remoteConfigurationController.fetch(appliedVersion))
 
-  // ...and again whenever a session is renewed. A miniprogram process routinely outlives a session:
-  // it is backgrounded and foregrounded for hours without a cold onLaunch, so a launch-only fetch
-  // would leave every later session in that process drawing against whatever the configuration was
-  // when the app first opened. The response lands for the session AFTER this one, which is exactly
-  // the "takes effect at the next new session" semantics the console promises. The controller
-  // ignores a call while one is already in flight.
+  // ...and again whenever a session is renewed. A miniprogram process routinely outlives a session,
+  // so a launch-only fetch would leave every later session on stale configuration. Positive-rate
+  // changes apply to a later session; crossing zero expires the current non-forced session after
+  // the response is committed. The controller ignores a call while a request chain is active.
   const remoteConfigRenewalSubscription = lifeCycle.subscribe(
     LifeCycleEventType.SESSION_RENEWED,
     ({ session }) => remoteConfigurationController.fetch(session.rcVersion),

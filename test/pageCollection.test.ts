@@ -42,8 +42,7 @@ test('manual page tracking reports initial_load after page stack collapse', () =
     pageCollection.startManualPage('pages/manual/index')
 
     const manualPageView = collected.find(
-      (event): event is RawRumViewEvent =>
-        event.type === 'view' && event.view.name === 'pages/manual/index',
+      (event): event is RawRumViewEvent => event.type === 'view' && event.view.name === 'pages/manual/index',
     )
     assert.equal(manualPageView?.view.loading_type, 'initial_load')
   } finally {
@@ -91,7 +90,6 @@ test('show without current page reports initial_load after page stack collapse',
     pageObservable.notify({ route: 'pages/home/index', lifecycle: 'load', time: 1_000 })
     pageObservable.notify({ route: 'pages/home/index', lifecycle: 'unload', time: 1_500 })
     collected.length = 0
-
     ;(globalThis as any).getCurrentPages = () => [{ route: 'pages/relaunch/index' }]
     pageObservable.notify({ route: 'pages/relaunch/index', lifecycle: 'show', time: 2_000 })
 
@@ -164,7 +162,7 @@ test('duplicate app show does not schedule duplicate view updates', () => {
   const originalClearInterval = globalThis.clearInterval
   let nextIntervalId = 1
   ;(globalThis as any).getCurrentPages = () => [{ route: 'pages/home/index' }]
-  ;(globalThis as any).setInterval = ((() => nextIntervalId++) as unknown) as typeof setInterval
+  ;(globalThis as any).setInterval = (() => nextIntervalId++) as unknown as typeof setInterval
   ;(globalThis as any).clearInterval = (() => undefined) as unknown as typeof clearInterval
   const lifeCycle = new LifeCycle()
   const pageObservable = new Observable<PageEvent>()
@@ -188,6 +186,87 @@ test('duplicate app show does not schedule duplicate view updates', () => {
     pageCollection.stop()
     globalThis.setInterval = originalSetInterval
     globalThis.clearInterval = originalClearInterval
+    ;(globalThis as any).getCurrentPages = originalGetCurrentPages
+  }
+})
+
+test('a sampled-out renewed session finalizes the old view without starting a new view timer', () => {
+  const originalSetInterval = globalThis.setInterval
+  const originalClearInterval = globalThis.clearInterval
+  const originalGetCurrentPages = (globalThis as any).getCurrentPages
+  let intervalCalls = 0
+  ;(globalThis as any).getCurrentPages = () => [{ route: 'pages/home/index' }]
+  ;(globalThis as any).setInterval = (() => {
+    intervalCalls += 1
+    return intervalCalls
+  }) as unknown as typeof setInterval
+  ;(globalThis as any).clearInterval = (() => undefined) as unknown as typeof clearInterval
+
+  const lifeCycle = new LifeCycle()
+  const pageObservable = new Observable<PageEvent>()
+  const collected: RawRumEvent[] = []
+  const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration, undefined, () => true)
+  lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+  try {
+    pageObservable.notify({ route: 'pages/home/index', lifecycle: 'load', time: 1_000 })
+    const oldPageId = pageCollection.getCurrentPage()!.id
+    collected.length = 0
+
+    lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, {
+      session: {
+        id: 'sampled-out-session',
+        created: 2_000,
+        expireAt: 902_000,
+        isTracked: false,
+        sessionSampleRate: 0,
+        rcVersion: 2,
+      },
+    })
+
+    const renewedPage = pageCollection.getCurrentPage()!
+    assert.notEqual(renewedPage.id, oldPageId)
+    assert.equal(renewedPage.isTracked, false)
+    assert.equal(renewedPage.updateIntervalId, undefined)
+    assert.equal(intervalCalls, 1, 'only the original tracked page schedules an interval')
+    assert.equal(collected.length, 1, 'only the outgoing tracked view is finalized')
+    assert.equal((collected[0] as RawRumViewEvent).view.id, oldPageId)
+  } finally {
+    pageCollection.stop()
+    globalThis.setInterval = originalSetInterval
+    globalThis.clearInterval = originalClearInterval
+    ;(globalThis as any).getCurrentPages = originalGetCurrentPages
+  }
+})
+
+test('page lifecycle stays idle while the current session is sampled out', () => {
+  const originalGetCurrentPages = (globalThis as any).getCurrentPages
+  const originalSetInterval = globalThis.setInterval
+  let intervalCalls = 0
+  ;(globalThis as any).getCurrentPages = () => [{ route: 'pages/home/index' }]
+  ;(globalThis as any).setInterval = (() => {
+    intervalCalls += 1
+    return intervalCalls
+  }) as unknown as typeof setInterval
+
+  const lifeCycle = new LifeCycle()
+  const pageObservable = new Observable<PageEvent>()
+  const collected: RawRumEvent[] = []
+  const pageCollection = startPageCollection(lifeCycle, pageObservable, configuration, undefined, () => false)
+  lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+  try {
+    pageObservable.notify({ route: 'pages/home/index', lifecycle: 'load', time: 1_000 })
+    pageObservable.notify({ route: 'pages/home/index', lifecycle: 'ready', time: 1_100 })
+    pageObservable.notify({ route: 'pages/home/index', lifecycle: 'hide', time: 2_000 })
+
+    assert.equal(pageCollection.getCurrentPage()?.isTracked, false)
+    assert.equal(pageCollection.getCurrentPage()?.updateIntervalId, undefined)
+    assert.equal(intervalCalls, 0)
+    assert.equal(collected.length, 0)
+  } finally {
+    pageCollection.stop()
+    globalThis.setInterval = originalSetInterval
     ;(globalThis as any).getCurrentPages = originalGetCurrentPages
   }
 })

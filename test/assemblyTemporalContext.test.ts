@@ -106,7 +106,7 @@ test('assembly adds configured service and version to rum events', () => {
   }
 })
 
-test('assembly keeps a sampled-out session without notifying renewal or drawing again', () => {
+test('assembly notifies once for a sampled-out session without drawing again', () => {
   const originalNow = Date.now
   Date.now = () => 1_000
   const lifeCycle = new LifeCycle()
@@ -144,7 +144,7 @@ test('assembly keeps a sampled-out session without notifying renewal or drawing 
 
     assert.equal(sessionManager.findSession()?.isTracked, false)
     assert.equal(configurationReads, 1)
-    assert.equal(renewals, 0)
+    assert.equal(renewals, 1)
     assert.equal(collected.length, 0)
   } finally {
     assembly.stop()

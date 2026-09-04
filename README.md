@@ -14,11 +14,11 @@ FlashCat 小程序 RUM（Real User Monitoring）SDK，用于监控小程序的�
 
 本仓库包含以下小程序 SDK 包：
 
-| 包名 | npm | 说明 |
-| ---- | --- | ---- |
-| core | `@flashcatcloud/miniprogram-core` | SDK 通用核心能力，包括配置、会话、传输和批量上报 |
+| 包名                 | npm                                   | 说明                                                    |
+| -------------------- | ------------------------------------- | ------------------------------------------------------- |
+| core                 | `@flashcatcloud/miniprogram-core`     | SDK 通用核心能力，包括配置、会话、传输和批量上报        |
 | miniprogram-platform | `@flashcatcloud/miniprogram-platform` | 小程序平台适配层，包括网络请求、生命周期和平台 API 封装 |
-| miniprogram-rum | `@flashcatcloud/miniprogram-rum` | 小程序 RUM 入口包，业务方通常只需要安装这个包 |
+| miniprogram-rum      | `@flashcatcloud/miniprogram-rum`      | 小程序 RUM 入口包，业务方通常只需要安装这个包           |
 
 ## 快速开始
 
@@ -34,12 +34,12 @@ npm install @flashcatcloud/miniprogram-rum
 
 ```javascript
 // app.js
-const { flashcatRum } = require("@flashcatcloud/miniprogram-rum");
+const { flashcatRum } = require('@flashcatcloud/miniprogram-rum')
 
 // 在 App() 之前初始化
 flashcatRum.init({
-  clientToken: "your-client-token",
-  applicationId: "your-app-id",
+  clientToken: 'your-client-token',
+  applicationId: 'your-app-id',
   // 方式一：使用默认 FlashCat 站点（推荐）
   // 默认上报到：https://browser.flashcat.cloud/api/v2/rum
 
@@ -49,18 +49,18 @@ flashcatRum.init({
   // 方式三：通过代理转发数据
   // proxy: 'https://proxy.example.com/path',  // 拼接为：{proxy}?ddforward={encodedPath}
 
-  service: "my-miniprogram",
-  env: "production",
-  version: "1.0.0",
+  service: 'my-miniprogram',
+  env: 'production',
+  version: '1.0.0',
   // 可选：启用 RUM 远程配置
   remoteConfigurationEnabled: true,
-});
+})
 
 App({
   onLaunch() {
-    console.log("App launched");
+    console.log('App launched')
   },
-});
+})
 ```
 
 就这么简单！SDK 会自动追踪：
@@ -76,34 +76,34 @@ App({
 除了自动追踪，还可以手动上报业务事件：
 
 ```javascript
-const { flashcatRum } = require("@flashcatcloud/miniprogram-rum");
+const { flashcatRum } = require('@flashcatcloud/miniprogram-rum')
 
 // 上报自定义事件
-flashcatRum.addCustomEvent("商品购买", {
-  productId: "12345",
+flashcatRum.addCustomEvent('商品购买', {
+  productId: '12345',
   price: 99.99,
-});
+})
 
 // 上报用户操作
-flashcatRum.addAction("点击分享按钮", "share");
+flashcatRum.addAction('点击分享按钮', 'share')
 
 // 上报错误
-flashcatRum.addError("加载失败", "custom");
+flashcatRum.addError('加载失败', 'custom')
 
 // 上报性能指标
-flashcatRum.addTiming("数据加载完成", 1500);
+flashcatRum.addTiming('数据加载完成', 1500)
 
 // 设置用户信息
 flashcatRum.setUser({
-  id: "user-123",
-  name: "Zhang San",
-});
+  id: 'user-123',
+  name: 'Zhang San',
+})
 
 // 设置全局上下文
 flashcatRum.setGlobalContext({
-  platform: "wechat",
-  channel: "official",
-});
+  platform: 'wechat',
+  channel: 'official',
+})
 ```
 
 ## 核心概念
@@ -138,57 +138,59 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 
 ## 配置选项
 
-| 配置项              | 类型     | 必填 | 默认值                   | 说明                                                                      |
-| ------------------- | -------- | ---- | ------------------------ | ------------------------------------------------------------------------- |
-| `clientToken`       | string   | ✅   | -                        | 客户端 Token                                                              |
-| `applicationId`     | string   | ✅   | -                        | 应用 ID                                                                   |
-| `site`              | string   | ❌   | `browser.flashcat.cloud` | FlashCat 站点域名，自动拼接为 `https://{site}/api/v2/rum`                 |
-| `proxy`             | string / function | ❌ | -                    | 代理地址或 URL 构建函数（优先级高于 site）                                |
-| `service`           | string   | ❌   | -                        | 服务名称                                                                  |
-| `env`               | string   | ❌   | -                        | 环境（dev/test/prod）                                                     |
-| `version`           | string   | ❌   | -                        | 应用版本号                                                                |
-| `sessionSampleRate` | number   | ❌   | 100                      | 会话采样率（0-100）                                                       |
-| `remoteConfigurationEnabled` | boolean | ❌ | false             | 是否启用远程配置（会话采样率与 `custom`）                                 |
-| `beforeSampling`    | function | ❌   | -                        | 创建新 Session 前同步调整采样率                                           |
-| `flushInterval`     | number   | ❌   | 15000                    | 上报间隔（毫秒）                                                          |
-| `trackPages`        | boolean  | ❌   | true                     | 是否追踪页面                                                              |
-| `trackActions`      | boolean  | ❌   | true                     | 是否追踪用户交互                                                          |
-| `trackRequests`     | boolean  | ❌   | true                     | 是否追踪网络请求                                                          |
-| `trackErrors`       | boolean  | ❌   | true                     | 是否追踪错误                                                              |
-| `trackPerformance`  | boolean  | ❌   | true                     | 是否追踪性能                                                              |
-| `debug`             | boolean  | ❌   | false                    | 是否开启调试模式                                                          |
-| `beforeSend`        | function | ❌   | -                        | 数据过滤钩子                                                              |
+| 配置项                       | 类型              | 必填 | 默认值                   | 说明                                                      |
+| ---------------------------- | ----------------- | ---- | ------------------------ | --------------------------------------------------------- |
+| `clientToken`                | string            | ✅   | -                        | 客户端 Token                                              |
+| `applicationId`              | string            | ✅   | -                        | 应用 ID                                                   |
+| `site`                       | string            | ❌   | `browser.flashcat.cloud` | FlashCat 站点域名，自动拼接为 `https://{site}/api/v2/rum` |
+| `proxy`                      | string / function | ❌   | -                        | 代理地址或 URL 构建函数（优先级高于 site）                |
+| `service`                    | string            | ❌   | -                        | 服务名称                                                  |
+| `env`                        | string            | ❌   | -                        | 环境（dev/test/prod）                                     |
+| `version`                    | string            | ❌   | -                        | 应用版本号                                                |
+| `sessionSampleRate`          | number            | ❌   | 100                      | 会话采样率（0-100）                                       |
+| `remoteConfigurationEnabled` | boolean           | ❌   | false                    | 是否启用远程配置（会话采样率与 `custom`）                 |
+| `beforeSampling`             | function          | ❌   | -                        | 创建新 Session 前同步调整采样率                           |
+| `flushInterval`              | number            | ❌   | 15000                    | 上报间隔（毫秒）                                          |
+| `trackPages`                 | boolean           | ❌   | true                     | 是否追踪页面                                              |
+| `trackActions`               | boolean           | ❌   | true                     | 是否追踪用户交互                                          |
+| `trackRequests`              | boolean           | ❌   | true                     | 是否追踪网络请求                                          |
+| `trackErrors`                | boolean           | ❌   | true                     | 是否追踪错误                                              |
+| `trackPerformance`           | boolean           | ❌   | true                     | 是否追踪性能                                              |
+| `debug`                      | boolean           | ❌   | false                    | 是否开启调试模式                                          |
+| `beforeSend`                 | function          | ❌   | -                        | 数据过滤钩子                                              |
 
 ### 远程配置
 
-设置 `remoteConfigurationEnabled: true` 后，SDK 会在初始化时同步读取上次缓存的有效配置，并在初始化完成后异步请求一次 `/api/v2/rum/config`。配置请求不阻塞初始化和事件采集，也不会被记录为 RUM resource 或 error 事件。
+设置 `remoteConfigurationEnabled: true` 后，SDK 会在初始化时同步读取上次缓存的有效配置，并在初始化完成后及每次新 Session 创建时异步请求 `/api/v2/rum/config`。同一时刻只保留一条包含重试在内的请求链；配置请求不阻塞初始化和事件采集，也不会被记录为 RUM resource 或 error 事件。
 
 远程配置只消费两个字段：`rum.sessionSampleRate` 和顶层 `custom`；追踪采样率、回放采样率和隐私等级等字段会被忽略。
 
 会话采样只在创建 Session 时执行一次：
 
 - 冷启动已有有效缓存时，首个新 Session 直接使用缓存中的采样率。
-- 没有缓存时，首个 Session 使用初始化的 `sessionSampleRate`；随后拉取到的新值只影响之后创建的 Session。
-- 当前 Session 不会因配置拉取成功而重新抽签。调用 `flashcatRum.stopSession()` 后，下一次事件创建的新 Session 会使用最新配置。
+- 没有缓存时，首个 Session 使用初始化的 `sessionSampleRate`；随后拉取到的正数采样率变更通常只影响之后创建的 Session。
+- 采样率在 `0` 和正数之间双向切换时立即结束当前普通 Session，下一次事件使用新配置创建 Session；`0` 调到正数后按新比例重新抽签，并不保证当前用户一定中签。正数之间调整不改变当前 Session。
+- 已生效的强制 Session 是上述即时切换的唯一例外。其他情况下也可调用 `flashcatRum.stopSession()`，让下一次事件创建的新 Session 使用最新配置。
 - 配置接口不可用、响应非法或缓存不可读时，SDK 安全回退到初始化采样率，不影响正常采集。
+- 200 响应必须包含 `schema_version: 1`、非负整数 `version` 和布尔值 `enabled`；不兼容或不完整响应不会覆盖当前有效配置。
 
-远程配置沿用现有 `site` 或 `proxy`。因此直连模式无需额外添加小程序合法域名；代理模式需确保现有代理同时转发 `/api/v2/rum/config`，并建议透传 ETag 以使用 `304 Not Modified`。SDK 只在初始化时拉取（失败时会进行有限重试），不会定时轮询，也不会在创建新 Session 时额外请求。
+远程配置沿用现有 `site` 或 `proxy`。因此直连模式无需额外添加小程序合法域名；代理模式需确保现有代理同时转发 `/api/v2/rum/config`，并建议透传 ETag 以使用 `304 Not Modified`。SDK 不做定时轮询，只在初始化和新 Session 创建时拉取，失败时进行有限重试。
 
 #### 读取 custom
 
 服务端响应的顶层 `custom` 供宿主自行决策，不参与 RUM 事件字段：
 
 ```javascript
-const custom = flashcatRum.getRemoteConfig();
+const custom = flashcatRum.getRemoteConfig()
 // 未启用远程配置、尚未拉取成功且无缓存、或服务端未下发 custom 时返回 undefined
 if (custom?.featureFlags?.newCart) {
   // ...
 }
 ```
 
-`custom` 只接受对象；非对象会被安全忽略，且不影响会话采样。每次调用都会返回一份副本，修改返回值不会影响 SDK 内部状态。旧版本写入的缓存仍可继续用于采样，只是 `getRemoteConfig()` 返回 `undefined`。
+`custom` 只接受对象；非对象会被安全忽略，且不影响会话采样。每次调用都会返回一份副本，修改返回值不会影响 SDK 内部状态。为避免旧缓存固化历史初始化采样率，本版本会忽略并清理 v1 远程配置缓存。
 
-`custom` 的生命周期与采样快照一致：200 响应中缺少 `custom` 会清除已有值，`304 Not Modified` 保留缓存值，服务端下发 `enabled: false` 会同时清除 `custom` 和本地缓存。
+`custom` 的生命周期与采样快照一致：200 响应中缺少 `custom` 会清除已有值，`304 Not Modified` 保留缓存值，服务端下发 `enabled: false` 会清除 `custom` 和采样覆盖值，但保留配置版本与 ETag，便于后续 304 和生效面统计。
 
 #### 自定义采样决策
 
@@ -201,11 +203,11 @@ flashcatRum.init({
   beforeSampling: ({ sessionSampleRate, custom }) => {
     // 返回 0-100 的数字覆盖采样率；返回 undefined 表示不修改
     if (custom?.vipUsers?.includes(getUserId())) {
-      return 100;
+      return 100
     }
-    return sessionSampleRate;
+    return sessionSampleRate
   },
-});
+})
 ```
 
 - `sessionSampleRate` 是本次将要使用的采样率：有远程值时为远程值，否则为初始化值。
@@ -217,8 +219,8 @@ flashcatRum.init({
 排障场景下可以用 `setForcedSession()` 让下一个 Session 必定被采集，无需修改采样率：
 
 ```javascript
-flashcatRum.setForcedSession();
-flashcatRum.stopSession(); // 结束当前 Session，之后创建的新 Session 会被强制采集
+flashcatRum.setForcedSession()
+flashcatRum.stopSession() // 结束当前 Session，之后创建的新 Session 会被强制采集
 ```
 
 - 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
@@ -264,7 +266,7 @@ flashcatRum.init({
   // ...
   debug: true, // 开启调试模式，会在控制台输出详细日志
   flushInterval: 5000, // 可选：缩短上报间隔方便测试
-});
+})
 ```
 
 查看控制台中 `[FlashCat RUM]` 开头的日志来诊断问题。

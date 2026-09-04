@@ -385,6 +385,7 @@ test('setForcedSession leaves the current session untouched and forces only the 
 
   const current = manager.renew()
   assert.equal(current.isTracked, false)
+  assert.equal(current.isForced, false)
 
   manager.setForcedSession()
   assert.equal(manager.findSession()?.id, current.id)
@@ -394,12 +395,14 @@ test('setForcedSession leaves the current session untouched and forces only the 
   manager.expire()
   const forced = manager.renew()
   assert.equal(forced.isTracked, true)
+  assert.equal(forced.isForced, true)
   assert.equal(forced.sessionSampleRate, 0)
   assert.equal(manager.findTrackedSession()?.id, forced.id)
 
   manager.expire()
   const afterForced = manager.renew()
   assert.equal(afterForced.isTracked, false)
+  assert.equal(afterForced.isForced, false)
 })
 
 test('setForcedSession before any session is created forces that first session', () => {

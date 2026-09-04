@@ -134,7 +134,7 @@ test('getRemoteConfig returns undefined before init and the fetched custom after
     assert.equal(adapter.configRequests.length, 1)
     adapter.configRequests[0].success?.({
       statusCode: 200,
-      data: { version: 3, enabled: true, rum: { sessionSampleRate: 100 }, custom: { tier: 'gold' } },
+      data: { schema_version: 1, version: 3, enabled: true, rum: { sessionSampleRate: 100 }, custom: { tier: 'gold' } },
     })
 
     assert.deepEqual(api.getRemoteConfig(), { tier: 'gold' })
@@ -215,7 +215,7 @@ test('beforeSampling receives the remote sample rate and custom of the next sess
     await Promise.resolve()
     adapter.configRequests[0].success?.({
       statusCode: 200,
-      data: { version: 4, enabled: true, rum: { sessionSampleRate: 10 }, custom: { tier: 'gold' } },
+      data: { schema_version: 1, version: 4, enabled: true, rum: { sessionSampleRate: 10 }, custom: { tier: 'gold' } },
     })
 
     started.sessionManager.expire()

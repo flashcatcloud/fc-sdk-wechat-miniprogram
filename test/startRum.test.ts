@@ -3,7 +3,12 @@ import assert from 'node:assert/strict'
 import { startRum } from '../packages/miniprogram-rum/src/boot/startRum'
 import { validateAndBuildRumConfiguration } from '../packages/miniprogram-rum/src/domain/configuration/configuration'
 import { LifeCycleEventType } from '../packages/miniprogram-rum/src/domain/lifeCycle'
-import type { PlatformAdapter, RequestOptions, UploadFileOptions, DownloadFileOptions } from '../packages/miniprogram-platform/src/platform/types'
+import type {
+  PlatformAdapter,
+  RequestOptions,
+  UploadFileOptions,
+  DownloadFileOptions,
+} from '../packages/miniprogram-platform/src/platform/types'
 
 function createAdapter(): PlatformAdapter {
   const storage = new Map<string, unknown>()
@@ -42,21 +47,24 @@ function createAdapter(): PlatformAdapter {
   }
 }
 
-test('startRum does not emit view events when trackPages is false', () => {
-  const originalWx = (globalThis as any).wx
-  const originalPage = (globalThis as any).Page
+let originalWxDescriptor: PropertyDescriptor | undefined
+let originalPageDescriptor: PropertyDescriptor | undefined
+
+test.beforeEach(() => {
+  originalWxDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'wx')
+  originalPageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Page')
   ;(globalThis as any).wx = {
     request: (options: RequestOptions) => {
       options.success?.({ statusCode: 200, data: 'ok' })
       options.complete?.()
       return { abort: () => undefined }
     },
-    uploadFile: (options: any) => {
+    uploadFile: (options: UploadFileOptions) => {
       options.success?.({ statusCode: 200, data: 'ok' })
       options.complete?.()
       return { abort: () => undefined }
     },
-    downloadFile: (options: any) => {
+    downloadFile: (options: DownloadFileOptions) => {
       options.success?.({ statusCode: 200, tempFilePath: '/tmp/file' })
       options.complete?.()
       return { abort: () => undefined }
@@ -64,74 +72,62 @@ test('startRum does not emit view events when trackPages is false', () => {
     getPerformance: () => undefined,
   }
   ;(globalThis as any).Page = (options: Record<string, any>) => options
+})
 
+test.afterEach(() => {
+  if (originalWxDescriptor) {
+    Object.defineProperty(globalThis, 'wx', originalWxDescriptor)
+  } else {
+    delete (globalThis as any).wx
+  }
+  if (originalPageDescriptor) {
+    Object.defineProperty(globalThis, 'Page', originalPageDescriptor)
+  } else {
+    delete (globalThis as any).Page
+  }
+})
+
+test('startRum does not emit view events when trackPages is false', () => {
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  const started = startRum(configuration, createAdapter())
+  const collected: any[] = []
+  started.lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (event) => collected.push(event))
   try {
-    const configuration = validateAndBuildRumConfiguration({
-      clientToken: 'token',
-      applicationId: 'app',
-      trackPages: false,
-      trackActions: false,
-      trackPerformance: false,
-      flushInterval: 100000,
-    })!
-    const started = startRum(configuration, createAdapter())
-    const collected: any[] = []
-    started.lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (event) => collected.push(event))
-
     started.startPage('manual-page')
-
-    started.stop()
-    assert.equal(collected.some((event) => event.type === 'view'), false)
+    assert.equal(
+      collected.some((event) => event.type === 'view'),
+      false,
+    )
   } finally {
-    ;(globalThis as any).wx = originalWx
-    ;(globalThis as any).Page = originalPage
+    started.stop()
   }
 })
 
 test('startRum does not emit RUM events when session is sampled out', () => {
-  const originalWx = (globalThis as any).wx
-  const originalPage = (globalThis as any).Page
-  ;(globalThis as any).wx = {
-    request: (options: RequestOptions) => {
-      options.success?.({ statusCode: 200, data: 'ok' })
-      options.complete?.()
-      return { abort: () => undefined }
-    },
-    uploadFile: (options: any) => {
-      options.success?.({ statusCode: 200, data: 'ok' })
-      options.complete?.()
-      return { abort: () => undefined }
-    },
-    downloadFile: (options: any) => {
-      options.success?.({ statusCode: 200, tempFilePath: '/tmp/file' })
-      options.complete?.()
-      return { abort: () => undefined }
-    },
-    getPerformance: () => undefined,
-  }
-  ;(globalThis as any).Page = (options: Record<string, any>) => options
-
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    sessionSampleRate: 0,
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  const started = startRum(configuration, createAdapter())
+  const collected: any[] = []
+  started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
   try {
-    const configuration = validateAndBuildRumConfiguration({
-      clientToken: 'token',
-      applicationId: 'app',
-      sessionSampleRate: 0,
-      trackPages: false,
-      trackActions: false,
-      trackPerformance: false,
-      flushInterval: 100000,
-    })!
-    const started = startRum(configuration, createAdapter())
-    const collected: any[] = []
-    started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
-
     started.addCustomEvent('sampled-out-event')
-
-    started.stop()
     assert.equal(collected.length, 0)
   } finally {
-    ;(globalThis as any).wx = originalWx
-    ;(globalThis as any).Page = originalPage
+    started.stop()
   }
 })
 
@@ -174,7 +170,7 @@ test('startRum reports traced resource events with backend-compatible _dd identi
   assert.equal(resourceEvent._dd.span_id, spanIdDecimal)
 })
 
-test('remote sampling keeps the current session and applies after stopSession', async () => {
+test('remote sampling crossing from positive to zero expires the current session immediately', async () => {
   const adapter = createAdapter()
   const requests: RequestOptions[] = []
   let remoteRequest: RequestOptions | undefined
@@ -208,26 +204,207 @@ test('remote sampling keeps the current session and applies after stopSession', 
   assert.ok(remoteRequest)
   remoteRequest.success?.({
     statusCode: 200,
-    data: { version: 8, enabled: true, rum: { sessionSampleRate: 0 } },
+    data: { schema_version: 1, version: 8, enabled: true, rum: { sessionSampleRate: 0 } },
   })
-  assert.equal(collected.some((event) => event.type === 'resource' || event.type === 'error'), false)
+  assert.equal(
+    collected.some((event) => event.type === 'resource' || event.type === 'error'),
+    false,
+  )
+  assert.equal(started.sessionManager.findSession(), undefined)
 
-  started.addCustomEvent('current-session-still-sampled')
-  assert.equal(collected.length, 1)
-
-  started.sessionManager.expire()
-  started.addCustomEvent('next-session-sampled-out')
+  started.addCustomEvent('next-event-is-sampled-out')
   const nextSession = started.sessionManager.findSession()!
   assert.equal(nextSession.sessionSampleRate, 0)
   assert.equal(nextSession.rcVersion, 8)
   assert.equal(nextSession.isTracked, false)
-  assert.equal(collected.length, 1)
+  assert.equal(collected.length, 0)
   started.addCustomEvent('same-sampled-out-session')
   assert.equal(started.sessionManager.findSession()?.id, nextSession.id)
-  assert.equal(collected.length, 1)
-  assert.equal(requests.filter((request) => request.url.includes('/api/v2/rum/config')).length, 1)
+  assert.equal(collected.length, 0)
+  assert.equal(requests.filter((request) => request.url.includes('/api/v2/rum/config')).length, 2)
 
   started.stop()
+})
+
+test('remote sampling crossing from zero to positive redraws on the next event', async () => {
+  const originalRandom = Math.random
+  try {
+    for (const scenario of [
+      { random: 0.1, tracked: true },
+      { random: 0.9, tracked: false },
+    ]) {
+      Math.random = () => scenario.random
+      const adapter = createAdapter()
+      const observedRates: number[] = []
+      let remoteRequest: RequestOptions | undefined
+      adapter.request = (options: RequestOptions) => {
+        if (options.url.includes('/api/v2/rum/config')) {
+          remoteRequest = options
+        }
+        return { abort: () => undefined }
+      }
+      const configuration = validateAndBuildRumConfiguration({
+        clientToken: 'token',
+        applicationId: 'app',
+        sessionSampleRate: 0,
+        remoteConfigurationEnabled: true,
+        beforeSampling: ({ sessionSampleRate }) => {
+          observedRates.push(sessionSampleRate)
+          return undefined
+        },
+        trackPages: false,
+        trackActions: false,
+        trackPerformance: false,
+        flushInterval: 100000,
+      })!
+      const started = startRum(configuration, adapter)
+      const collected: any[] = []
+      started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+
+      try {
+        await Promise.resolve()
+        remoteRequest!.success?.({
+          statusCode: 200,
+          data: { schema_version: 1, version: 9, enabled: true, rum: { sessionSampleRate: 20 } },
+        })
+        assert.equal(started.sessionManager.findSession(), undefined)
+
+        started.addCustomEvent('redraw-after-zero')
+        const nextSession = started.sessionManager.findSession()!
+        assert.equal(nextSession.sessionSampleRate, 20)
+        assert.equal(nextSession.isTracked, scenario.tracked)
+        assert.equal(collected.length, scenario.tracked ? 1 : 0)
+        assert.deepEqual(observedRates, [0, 20])
+      } finally {
+        started.stop()
+      }
+    }
+  } finally {
+    Math.random = originalRandom
+  }
+})
+
+test('positive-to-positive and zero-to-zero remote changes keep the current session', async () => {
+  for (const scenario of [
+    { initialRate: 100, remoteRate: 20 },
+    { initialRate: 0, remoteRate: 0 },
+  ]) {
+    const adapter = createAdapter()
+    let remoteRequest: RequestOptions | undefined
+    adapter.request = (options: RequestOptions) => {
+      if (options.url.includes('/api/v2/rum/config')) {
+        remoteRequest = options
+      }
+      return { abort: () => undefined }
+    }
+    const configuration = validateAndBuildRumConfiguration({
+      clientToken: 'token',
+      applicationId: 'app',
+      sessionSampleRate: scenario.initialRate,
+      remoteConfigurationEnabled: true,
+      trackPages: false,
+      trackActions: false,
+      trackPerformance: false,
+      flushInterval: 100000,
+    })!
+    const started = startRum(configuration, adapter)
+    try {
+      const currentSessionId = started.sessionManager.findSession()!.id
+      await Promise.resolve()
+      remoteRequest!.success?.({
+        statusCode: 200,
+        data: {
+          schema_version: 1,
+          version: 10,
+          enabled: true,
+          rum: { sessionSampleRate: scenario.remoteRate },
+        },
+      })
+      assert.equal(started.sessionManager.findSession()!.id, currentSessionId)
+      assert.equal(started.sessionManager.findSession()!.sessionSampleRate, scenario.initialRate)
+    } finally {
+      started.stop()
+    }
+  }
+})
+
+test('a current forced session is the exception to a positive-to-zero transition', async () => {
+  const adapter = createAdapter()
+  let remoteRequest: RequestOptions | undefined
+  adapter.request = (options: RequestOptions) => {
+    if (options.url.includes('/api/v2/rum/config')) {
+      remoteRequest = options
+    }
+    return { abort: () => undefined }
+  }
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    sessionSampleRate: 100,
+    remoteConfigurationEnabled: true,
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  const started = startRum(configuration, adapter)
+
+  try {
+    await Promise.resolve()
+    started.sessionManager.setForcedSession()
+    started.sessionManager.expire()
+    started.addCustomEvent('create-forced-session')
+    const forcedSession = started.sessionManager.findSession()!
+    assert.equal(forcedSession.isForced, true)
+
+    remoteRequest!.success?.({
+      statusCode: 200,
+      data: { schema_version: 1, version: 11, enabled: true, rum: { sessionSampleRate: 0 } },
+    })
+    assert.equal(started.sessionManager.findSession()!.id, forcedSession.id)
+  } finally {
+    started.stop()
+  }
+})
+
+test('a pending forced marker survives a positive-to-zero transition', async () => {
+  const adapter = createAdapter()
+  let remoteRequest: RequestOptions | undefined
+  adapter.request = (options: RequestOptions) => {
+    if (options.url.includes('/api/v2/rum/config')) {
+      remoteRequest = options
+    }
+    return { abort: () => undefined }
+  }
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    sessionSampleRate: 100,
+    remoteConfigurationEnabled: true,
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  const started = startRum(configuration, adapter)
+
+  try {
+    await Promise.resolve()
+    started.sessionManager.setForcedSession()
+    remoteRequest!.success?.({
+      statusCode: 200,
+      data: { schema_version: 1, version: 12, enabled: true, rum: { sessionSampleRate: 0 } },
+    })
+    assert.equal(started.sessionManager.findSession(), undefined)
+
+    started.addCustomEvent('forced-after-transition')
+    const forcedSession = started.sessionManager.findSession()!
+    assert.equal(forcedSession.sessionSampleRate, 0)
+    assert.equal(forcedSession.isForced, true)
+    assert.equal(forcedSession.isTracked, true)
+  } finally {
+    started.stop()
+  }
 })
 
 test('asks the console again when a session is renewed', async () => {
@@ -260,7 +437,7 @@ test('asks the console again when a session is renewed', async () => {
   assert.equal(configRequests.length, 1)
   configRequests[0].success?.({
     statusCode: 200,
-    data: { version: 4, enabled: true, rum: { sessionSampleRate: 100 } },
+    data: { schema_version: 1, version: 4, enabled: true, rum: { sessionSampleRate: 100 } },
   })
 
   started.sessionManager.expire()
@@ -269,7 +446,7 @@ test('asks the console again when a session is renewed', async () => {
   assert.equal(configRequests.length, 2, 'a renewed session must ask for the configuration again')
   assert.ok(
     configRequests[1].url.includes('applied_version=4'),
-    'the new request reports the version the renewed session was drawn under'
+    'the new request reports the version the renewed session was drawn under',
   )
 
   started.stop()
@@ -295,6 +472,9 @@ test('startRum does not request remote configuration when it is disabled', async
   const started = startRum(configuration, adapter)
   await Promise.resolve()
 
-  assert.equal(requests.some((request) => request.url.includes('/api/v2/rum/config')), false)
+  assert.equal(
+    requests.some((request) => request.url.includes('/api/v2/rum/config')),
+    false,
+  )
   started.stop()
 })
