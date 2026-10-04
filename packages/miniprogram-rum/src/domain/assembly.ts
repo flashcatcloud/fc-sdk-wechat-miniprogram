@@ -127,6 +127,13 @@ export function startRumAssembly({
     const shouldUseEventTimeForSession = rawEvent.type !== 'view' || (rawView?.id && rawView.id !== currentPage?.id)
     let session = sessionManager.findSession(shouldUseEventTimeForSession ? eventTime : undefined)
     if (!session) {
+      if (rawEvent.type === 'view' && shouldUseEventTimeForSession) {
+        // An update of a view that is no longer current, and started when no session existed - the
+        // page whose own view renewed the session, finalized by that renewal. It belongs to no
+        // session, and a session created now could not contain it: renewing here would only start a
+        // second session behind the one just created, leaving that one orphaned.
+        return
+      }
       session = sessionManager.renew()
       lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
       if (session.isTracked === false) {
