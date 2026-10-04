@@ -23,8 +23,18 @@ export function startSessionErrorTracking(lifeCycle: LifeCycle, sessionManager: 
     if (!session || event.session?.id !== session.id || !isWithholdingEvents(session)) {
       return
     }
-    if (sessionManager.release(session.id)) {
-      lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId: session.id, reason: 'error' })
-    }
+    releaseSession(lifeCycle, sessionManager, session.id, 'error')
   })
+}
+
+/** Releases the session if it still withholds its events, and announces it to the buffer once. */
+export function releaseSession(
+  lifeCycle: LifeCycle,
+  sessionManager: SessionManager,
+  sessionId: string,
+  reason: 'error' | 'force',
+) {
+  if (sessionManager.release(sessionId)) {
+    lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId, reason })
+  }
 }

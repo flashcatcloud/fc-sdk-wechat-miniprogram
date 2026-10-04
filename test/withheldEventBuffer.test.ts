@@ -486,3 +486,26 @@ test('an error of an earlier session does not release the current one', (t) => {
   assert.equal(releasedAfterJitter().filter((event) => event.session.id === getSession().id).length, 0)
   assert.equal(sessionManager.findSession()?.isReleased, undefined)
 })
+
+test('releases the error and its history when the session has no view at all', (t) => {
+  const { collect, releasedAfterJitter } = setup(t)
+  collect('action')
+  collect('error')
+  assert.deepEqual(
+    releasedAfterJitter().map((event) => event.type),
+    ['error', 'action'],
+  )
+})
+
+test('releases detail collected before the first view alongside the views', (t) => {
+  const { collect, releasedAfterJitter, tick } = setup(t)
+  const unknownView = { view: { id: 'unknown', url: 'unknown', name: 'unknown' } }
+  collect('action', unknownView)
+  collect('error', { ...unknownView, error: { id: 'launch', message: 'launch failed', source: 'promise' } })
+  tick(10)
+  collect('view', { date: Date.now() })
+  assert.deepEqual(
+    releasedAfterJitter().map((event) => `${event.type}:${event.view.id}`),
+    ['view:view-1', 'error:unknown', 'action:unknown'],
+  )
+})

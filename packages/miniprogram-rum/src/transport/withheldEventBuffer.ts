@@ -1,4 +1,4 @@
-import type { SessionManager, SessionState } from '@flashcatcloud/miniprogram-core'
+import type { SessionManager } from '@flashcatcloud/miniprogram-core'
 import { isWithholdingEvents, jsonStringify } from '@flashcatcloud/miniprogram-core'
 import type { LifeCycle } from '../domain/lifeCycle'
 import { LifeCycleEventType } from '../domain/lifeCycle'
@@ -85,7 +85,7 @@ export function startWithheldEventBuffer(
   let droppedCount = 0
 
   const eventSubscription = lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => {
-    const session = findTrackedSession()
+    const session = sessionManager.findTrackedSession()
     // Which session an event belongs to is what the event says, not whichever session is current:
     // assembly resolves the session at the event's own time, so a request completing after its
     // session ended still carries that session's id.
@@ -115,7 +115,7 @@ export function startWithheldEventBuffer(
     }
 
     if (withheldForSessionId !== undefined && isFrom(withheldForSessionId)) {
-      if (event.type === 'error' && computeBytesCount(jsonStringify(event) ?? '') > WITHHELD_BUFFER_BYTES_LIMIT) {
+      if (event.type === 'error' && sizeOf(event) > WITHHELD_BUFFER_BYTES_LIMIT) {
         // The session has already earned its release. An error larger than the whole budget goes
         // to the batch on its own, without evicting the history before it; that history still
         // leaves behind the jitter.
@@ -154,11 +154,6 @@ export function startWithheldEventBuffer(
       settleBuffer(true)
     }
   })
-
-  function findTrackedSession(): SessionState | undefined {
-    const session = sessionManager.findSession()
-    return session && session.isTracked !== false ? session : undefined
-  }
 
   /**
    * Called when what is held may not get another chance to leave. A session that was released is
@@ -202,7 +197,7 @@ export function startWithheldEventBuffer(
       return
     }
 
-    const eventBytes = computeBytesCount(jsonStringify(event) ?? '')
+    const eventBytes = sizeOf(event)
     if (eventBytes > WITHHELD_BUFFER_BYTES_LIMIT) {
       // It could never be part of a released buffer, and holding it would evict the whole minute
       // before it. The releasing error takes the other path, where it is forwarded on its own.
@@ -286,24 +281,26 @@ export function startWithheldEventBuffer(
   function release() {
     prune()
 
-    // A detail whose view is gone has no container to hang from, so it would be unreachable.
-    const releasable = details.filter((held) => views.has(held.viewId))
-
     // Views oldest first: the backend builds the session out of whichever view arrives first. Then
     // the errors, then the rest oldest first: when the app is leaving, only the first requests are
-    // sure to go, and the error is what the session is kept for.
+    // sure to go, and the error is what the session is kept for. Views only order the release: a
+    // detail with no held view - collected with page tracking off, or before the first page - is
+    // still part of the errored session's history and goes out with it.
     const orderedViews: RumEvent[] = []
     views.forEach((view) => orderedViews.push(view))
     orderedViews.sort((left, right) => left.date - right.date)
+    const errors: RumEvent[] = []
+    const others: RumEvent[] = []
+    details.forEach((held) => (held.event.type === 'error' ? errors : others).push(held.event))
     orderedViews.forEach(forward)
-    releasable.filter((held) => held.event.type === 'error').forEach((held) => forward(held.event))
-    releasable.filter((held) => held.event.type !== 'error').forEach((held) => forward(held.event))
+    errors.forEach(forward)
+    others.forEach(forward)
 
     if (debug) {
       try {
         console.log('[FlashCat RUM][Debug] Error session event buffer released', {
           viewsCount: views.size,
-          eventsCount: releasable.length,
+          eventsCount: details.length,
           droppedCount,
           bytes,
         })
@@ -382,8 +379,9 @@ export function computeReleaseDelay(sessionId: string) {
   return Math.abs(hash) % WITHHELD_BUFFER_RELEASE_MAX_DELAY
 }
 
-/** UTF-8 size of a string, which is what the budget is promised in. */
-function computeBytesCount(candidate: string) {
+/** UTF-8 size of the serialized event, which is what the budget is promised in. */
+function sizeOf(event: RumEvent) {
+  const candidate = jsonStringify(event) ?? ''
   let count = 0
   for (let i = 0; i < candidate.length; i += 1) {
     const code = candidate.charCodeAt(i)

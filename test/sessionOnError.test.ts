@@ -502,3 +502,35 @@ test('a renewed on-error session keeps the view it opens with', (t) => {
   assert.deepEqual(types.slice(0, 3), ['view', 'error', 'custom'])
   assert.ok(types.slice(3).every((type) => type === 'view'))
 })
+
+test('an on-error session with page tracking off releases its error and history', (t) => {
+  enableTimers(t)
+  const { started, intakeEvents, hideApp } = startHarness(t, {
+    sessionSampleRate: 0,
+    sessionOnError: true,
+    trackPages: false,
+  })
+  started.addCustomEvent('before-error')
+  started.addError('boom', 'custom')
+  t.mock.timers.tick(3_000)
+  hideApp()
+  assert.deepEqual(
+    intakeEvents().map((event) => event.type),
+    ['error', 'custom'],
+  )
+})
+
+test('an error raised before the first page is released with the session', (t) => {
+  enableTimers(t)
+  const { started, intakeEvents, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true })
+  started.addCustomEvent('during-launch')
+  started.addError('launch failed', 'custom')
+  started.startPage('pages/home')
+  t.mock.timers.tick(3_000)
+  hideApp()
+  const events = intakeEvents()
+  assert.deepEqual(
+    events.slice(0, 3).map((event) => `${event.type}:${event.view.id === 'unknown' ? 'unknown' : 'page'}`),
+    ['view:page', 'error:unknown', 'custom:unknown'],
+  )
+})
