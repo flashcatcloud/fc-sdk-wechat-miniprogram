@@ -16,6 +16,7 @@ import { LifeCycleEventType } from '../domain/lifeCycle'
 import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { PageCollection } from '../domain/page/pageCollection'
 import { createRemoteConfigurationController } from '../domain/configuration/remoteConfiguration'
+import { startSessionErrorTracking } from '../domain/trackSessionError'
 
 const noopPageCollection: PageCollection = {
   stop: () => undefined,
@@ -36,14 +37,29 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
   if (!sessionManager.findSession()) {
     sessionManager.renew()
   }
-  remoteConfigurationController.setSessionSampleRateChangeHandler(() => {
-    const currentSession = sessionManager.findSession()
-    if (!currentSession || currentSession.isForced === true) {
+  remoteConfigurationController.setSamplingChangeHandler((_previous, next) => {
+    const session = sessionManager.findSession()
+    // A forced session is collected whatever the rates say, so no rate may end it.
+    if (!session || session.isForced === true) {
       return
     }
-    // Crossing the zero boundary is the only remote update that interrupts a live session.
-    // The next event creates a session against the newly committed configuration.
-    sessionManager.expire()
+    // Ending the session is the only action: the next event creates one against the newly
+    // committed configuration. Nothing else interrupts a live session, whose draw is locked.
+    if (session.isTracked === false) {
+      // A session drawn at 0 lost no lottery: nothing was ever drawn for it. A rate leaving 0, or the
+      // on-error switch turning on at 0, would now keep some of these visitors, so they draw again.
+      // A session that lost a draw at a real rate keeps its outcome, or the fleet would be re-rolled.
+      if (session.sessionSampleRate === 0 && (next.sessionSampleRate > 0 || next.sessionOnError)) {
+        sessionManager.expire()
+      }
+      return
+    }
+    // A rate of 0 is the emergency stop, except for a session kept by the on-error switch while the
+    // switch stays on: rate 0 next to the switch is its ordinary setting, and ending such a session
+    // would throw away exactly the minute the switch exists to keep.
+    if (next.sessionSampleRate === 0 && !(next.sessionOnError && session.sampledOnError === true)) {
+      sessionManager.expire()
+    }
   })
 
   if (configuration.debug) {
@@ -151,7 +167,10 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     adapter,
   })
 
-  const rumBatch = startRumBatch(configuration, lifeCycle, adapter, appObservable)
+  // Subscribed before the batch below, and it has to stay that way: the withheld event buffer runs
+  // on the same event and only sees a session as released once this has released it.
+  const sessionErrorTrackingSubscription = startSessionErrorTracking(lifeCycle, sessionManager)
+  const rumBatch = startRumBatch(configuration, lifeCycle, adapter, appObservable, sessionManager)
 
   // Fetch on the next microtask so public initialization can complete first.
   // The request is marked as internal and never blocks event collection.
@@ -175,6 +194,15 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     userContext,
     addAction: actionCollection?.addAction || (() => undefined),
     addError: errorCollection.addError,
+    setForcedSession: () => {
+      sessionManager.setForcedSession()
+      // A session that withholds its events until it errors is released straight away: the host
+      // asked for this user now. Its draw still stands; only the next session is forced.
+      const session = sessionManager.findSession()
+      if (session && sessionManager.release(session.id)) {
+        lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId: session.id, reason: 'force' })
+      }
+    },
     startPage: (name?: string) => {
       if (!name) {
         return
@@ -206,6 +234,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
       stopPageObservable()
       stopRequestObservable()
       rumBatch.stop()
+      sessionErrorTrackingSubscription.unsubscribe()
       rumAssembly.stop()
       remoteConfigRenewalSubscription.unsubscribe()
       remoteConfigurationController.stop()

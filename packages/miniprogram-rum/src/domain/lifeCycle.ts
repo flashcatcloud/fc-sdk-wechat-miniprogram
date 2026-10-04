@@ -18,6 +18,7 @@ export const enum LifeCycleEventType {
   RUM_EVENT_COLLECTED,
   REQUEST_STARTED,
   SESSION_RENEWED,
+  SESSION_RELEASED,
 }
 
 export type LifeCycleEventMap = {
@@ -53,6 +54,11 @@ export type LifeCycleEventMap = {
   [LifeCycleEventType.RUM_EVENT_COLLECTED]: RumEvent
   [LifeCycleEventType.SESSION_RENEWED]: {
     session: SessionState
+  }
+  /** A session that withheld its events has released them: it reported an error, or was forced. */
+  [LifeCycleEventType.SESSION_RELEASED]: {
+    sessionId: string
+    reason: 'error' | 'force'
   }
 }
 

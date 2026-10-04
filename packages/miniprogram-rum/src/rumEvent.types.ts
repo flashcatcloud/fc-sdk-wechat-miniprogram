@@ -19,6 +19,8 @@ export type RumEvent = RawRumEvent & {
     type: string
     has_replay: boolean
     sampled_for_replay: boolean
+    /** Set on view events of a session kept only because it reported an error. */
+    sampled_for_error?: boolean
   }
   usr?: {
     id?: string

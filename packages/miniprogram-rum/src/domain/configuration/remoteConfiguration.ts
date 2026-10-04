@@ -15,12 +15,14 @@ const LEGACY_INDEX_KEY_PREFIX = '_fc_rum_remote_config_index_v1_'
 
 export interface SessionConfigurationSnapshot {
   sessionSampleRate: number
+  sessionOnError: boolean
   rcVersion: number
   custom: Record<string, unknown> | null
 }
 
 interface RemoteConfigurationState {
   sessionSampleRate?: number
+  sessionOnError?: boolean
   rcVersion: number
   custom: Record<string, unknown> | null
 }
@@ -39,7 +41,9 @@ interface RemoteConfigurationDependencies {
 export interface RemoteConfigurationController {
   getSessionConfiguration: () => SessionConfigurationSnapshot
   getRemoteConfig: () => Record<string, unknown> | undefined
-  setSessionSampleRateChangeHandler: (handler: (previousRate: number, nextRate: number) => void) => void
+  setSamplingChangeHandler: (
+    handler: (previous: SessionConfigurationSnapshot, next: SessionConfigurationSnapshot) => void,
+  ) => void
   fetch: (appliedVersion?: number) => void
   stop: () => void
 }
@@ -55,6 +59,7 @@ export function createRemoteConfigurationController(
 ): RemoteConfigurationController {
   const initialSnapshot: SessionConfigurationSnapshot = {
     sessionSampleRate: configuration.sessionSampleRate,
+    sessionOnError: configuration.sessionOnError,
     rcVersion: 0,
     custom: null,
   }
@@ -63,7 +68,7 @@ export function createRemoteConfigurationController(
     return {
       getSessionConfiguration: () => initialSnapshot,
       getRemoteConfig: () => undefined,
-      setSessionSampleRateChangeHandler: () => undefined,
+      setSamplingChangeHandler: () => undefined,
       fetch: () => undefined,
       stop: () => undefined,
     }
@@ -77,7 +82,9 @@ export function createRemoteConfigurationController(
   let hasRemoteConfiguration = false
   let highestKnownVersion = 0
   let stopped = false
-  let sampleRateChangeHandler: ((previousRate: number, nextRate: number) => void) | undefined
+  let samplingChangeHandler:
+    | ((previous: SessionConfigurationSnapshot, next: SessionConfigurationSnapshot) => void)
+    | undefined
   let activeChainId: number | undefined
   let nextChainId = 0
   let retryTimer: unknown
@@ -87,7 +94,7 @@ export function createRemoteConfigurationController(
     return {
       getSessionConfiguration: getEffectiveSnapshot,
       getRemoteConfig: () => undefined,
-      setSessionSampleRateChangeHandler: () => undefined,
+      setSamplingChangeHandler: () => undefined,
       fetch: () => undefined,
       stop: () => {
         stopped = true
@@ -106,6 +113,7 @@ export function createRemoteConfigurationController(
   function getEffectiveSnapshot(): SessionConfigurationSnapshot {
     return {
       sessionSampleRate: currentState.sessionSampleRate ?? configuration.sessionSampleRate,
+      sessionOnError: currentState.sessionOnError ?? configuration.sessionOnError,
       rcVersion: currentState.rcVersion,
       custom: cloneCustom(currentState.custom),
     }
@@ -190,11 +198,12 @@ export function createRemoteConfigurationController(
   }
 
   function applyConfiguration(parsed: ParsedConfiguration, nextEtag: string | undefined, rawResponse: unknown) {
-    const previousRate = getEffectiveSnapshot().sessionSampleRate
+    const previousSnapshot = getEffectiveSnapshot()
     currentState = {
       ...(parsed.enabled && parsed.sessionSampleRate !== undefined
         ? { sessionSampleRate: parsed.sessionSampleRate }
         : {}),
+      ...(parsed.enabled && parsed.sessionOnError !== undefined ? { sessionOnError: parsed.sessionOnError } : {}),
       rcVersion: parsed.version,
       custom: parsed.enabled ? parsed.custom : null,
     }
@@ -210,14 +219,21 @@ export function createRemoteConfigurationController(
       etag: nextEtag,
     })
 
-    if ((previousRate === 0) !== (nextSnapshot.sessionSampleRate === 0)) {
-      debugLog('Remote session sample rate crossed zero', {
-        previousRate,
+    // Only these two changes can decide anything about a running session: a rate crossing zero,
+    // and the on-error switch, which decides whether a rate of zero still keeps sessions.
+    if (
+      (previousSnapshot.sessionSampleRate === 0) !== (nextSnapshot.sessionSampleRate === 0) ||
+      previousSnapshot.sessionOnError !== nextSnapshot.sessionOnError
+    ) {
+      debugLog('Remote session sampling changed', {
+        previousRate: previousSnapshot.sessionSampleRate,
         nextRate: nextSnapshot.sessionSampleRate,
+        previousSessionOnError: previousSnapshot.sessionOnError,
+        nextSessionOnError: nextSnapshot.sessionOnError,
         version: parsed.version,
       })
       try {
-        sampleRateChangeHandler?.(previousRate, nextSnapshot.sessionSampleRate)
+        samplingChangeHandler?.(previousSnapshot, nextSnapshot)
       } catch {
         // Host/session lifecycle failures must not invalidate an accepted configuration.
       }
@@ -364,8 +380,8 @@ export function createRemoteConfigurationController(
       const custom = cloneCustom(currentState.custom)
       return custom || undefined
     },
-    setSessionSampleRateChangeHandler: (handler) => {
-      sampleRateChangeHandler = handler
+    setSamplingChangeHandler: (handler) => {
+      samplingChangeHandler = handler
     },
     fetch: (appliedVersion) => {
       if (isRemoteVersion(appliedVersion)) {
@@ -404,6 +420,7 @@ interface ParsedConfiguration {
   enabled: boolean
   version: number
   sessionSampleRate?: number
+  sessionOnError?: boolean
   custom: Record<string, unknown> | null
 }
 
@@ -436,6 +453,10 @@ function parseResponse(data: unknown): ParsedResponse | undefined {
     }
     sessionSampleRate = value.rum.sessionSampleRate
   }
+  // A switch is a boolean or nothing. Anything else is dropped rather than read as either
+  // position, and leaves the initialization value in place.
+  const sessionOnError =
+    isRecord(value.rum) && typeof value.rum.sessionOnError === 'boolean' ? value.rum.sessionOnError : undefined
 
   const custom = isRecord(value.custom) ? cloneCustom(value.custom) : null
 
@@ -444,6 +465,7 @@ function parseResponse(data: unknown): ParsedResponse | undefined {
     enabled: value.enabled,
     version: value.version,
     sessionSampleRate,
+    sessionOnError,
     custom,
   }
 }
@@ -454,6 +476,7 @@ function isCachedRemoteConfiguration(value: unknown): value is CachedRemoteConfi
   }
   return (
     (value.sessionSampleRate === undefined || isSampleRate(value.sessionSampleRate)) &&
+    (value.sessionOnError === undefined || typeof value.sessionOnError === 'boolean') &&
     isRemoteVersion(value.rcVersion) &&
     (value.custom === undefined || isRecord(value.custom) || value.custom === null) &&
     (value.etag === undefined || typeof value.etag === 'string')
@@ -467,6 +490,7 @@ function isRecord(value: unknown): value is Record<string, any> {
 function normalizeRemoteState(state: CachedRemoteConfiguration): RemoteConfigurationState {
   return {
     ...(state.sessionSampleRate !== undefined ? { sessionSampleRate: state.sessionSampleRate } : {}),
+    ...(state.sessionOnError !== undefined ? { sessionOnError: state.sessionOnError } : {}),
     rcVersion: state.rcVersion,
     custom: isRecord(state.custom) ? cloneCustom(state.custom) : null,
   }

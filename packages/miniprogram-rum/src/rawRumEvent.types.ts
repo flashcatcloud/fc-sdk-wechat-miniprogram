@@ -2,7 +2,7 @@ export type RumEventType = 'view' | 'resource' | 'error' | 'action' | 'custom'
 
 export type ResourceType = 'xhr' | 'js' | 'css' | 'image' | 'font' | 'media' | 'other'
 
-export type ErrorSource = 'app' | 'promise' | 'custom' | 'page-not-found' | 'lazy-load' | 'network'
+export type ErrorSource = 'app' | 'promise' | 'custom' | 'page-not-found' | 'lazy-load' | 'network' | 'agent'
 
 export interface RawRumEventBase {
   date: number

@@ -104,7 +104,8 @@ export function startRumAssembly({
           error: {
             id: generateUUID(),
             message: error.message,
-            source: 'custom',
+            // The SDK's own report, which must not count as the application reporting an error.
+            source: error.source,
           },
         })
       })
@@ -166,7 +167,12 @@ export function startRumAssembly({
             ...rawEvent._dd,
             configuration: {
               ...rawEvent._dd.configuration,
-              session_sample_rate: session.sessionSampleRate ?? configuration.sessionSampleRate,
+              // A session kept only because it errored stands for itself rather than for
+              // `100 / rate` sessions, and 0 is what tells the backend not to scale it. Decided
+              // from the session itself so a restored session reports it too.
+              session_sample_rate: session.sampledOnError
+                ? 0
+                : (session.sessionSampleRate ?? configuration.sessionSampleRate),
               rc_version: session.rcVersion ?? 0,
             },
           },
@@ -183,6 +189,8 @@ export function startRumAssembly({
         type: 'user',
         has_replay: false,
         sampled_for_replay: false,
+        // Tells the backend this session's detail only starts where the withheld buffer reached.
+        ...(rawEvent.type === 'view' && session.sampledOnError ? { sampled_for_error: true } : {}),
       },
       view: {
         ...rawView,
