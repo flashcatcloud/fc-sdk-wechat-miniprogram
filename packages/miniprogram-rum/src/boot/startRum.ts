@@ -13,7 +13,7 @@ import { startUserContext } from '../domain/contexts/userContext'
 import { startRumAssembly } from '../domain/assembly'
 import { startRumBatch } from '../transport/startRumBatch'
 import { LifeCycleEventType } from '../domain/lifeCycle'
-import { generateUUID } from '@flashcatcloud/miniprogram-core'
+import { generateUUID, isSessionTracked } from '@flashcatcloud/miniprogram-core'
 import type { PageCollection } from '../domain/page/pageCollection'
 import { createRemoteConfigurationController } from '../domain/configuration/remoteConfiguration'
 import { startSessionErrorTracking } from '../domain/trackSessionError'
@@ -45,7 +45,7 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     }
     // Ending the session is the only action: the next event creates one against the newly
     // committed configuration. Nothing else interrupts a live session, whose draw is locked.
-    if (session.isTracked === false) {
+    if (!isSessionTracked(session)) {
       // A session drawn at 0 lost no lottery: nothing was ever drawn for it. A rate leaving 0, or the
       // on-error switch turning on at 0, would now keep some of these visitors, so they draw again.
       // A session that lost a draw at a real rate keeps its outcome, or the fleet would be re-rolled.
@@ -103,7 +103,10 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
         pageObservable,
         configuration,
         appObservable,
-        () => sessionManager.findSession()?.isTracked !== false,
+        () => {
+          const session = sessionManager.findSession()
+          return session === undefined || isSessionTracked(session)
+        },
       )
     : noopPageCollection
   const requestCollection = configuration.trackRequests

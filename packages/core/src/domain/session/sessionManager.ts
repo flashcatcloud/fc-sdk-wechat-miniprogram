@@ -12,6 +12,11 @@ export interface SessionState {
   created: number
   expireAt: number
   anonymousId?: string
+  /**
+   * Whether the plain draw (or forcing) collected the session. A session kept by `sessionOnError`
+   * is collected too - see {@link isSessionTracked} - but stored as not, so an SDK that predates
+   * the switch reads it as sampled out rather than uploading it in full.
+   */
   isTracked?: boolean
   /** Whether this session consumed the one-shot forced-session marker. */
   isForced?: boolean
@@ -175,7 +180,7 @@ export function startSessionManager(
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
-      isTracked: isSampled || sampledOnError,
+      isTracked: isSampled,
       isForced,
       sessionSampleRate: resolvedSessionSampleRate,
       rcVersion: currentConfiguration.rcVersion,
@@ -209,7 +214,7 @@ export function startSessionManager(
     findSession,
     findTrackedSession: (time) => {
       const state = findSession(time)
-      if (!state || state.isTracked === false) {
+      if (!state || !isSessionTracked(state)) {
         return undefined
       }
       return state
@@ -259,6 +264,11 @@ export function startSessionManager(
       sessionHistory.closeActive(now())
     },
   }
+}
+
+/** Whether the session collects events at all: drawn, forced, or kept until it reports an error. */
+export function isSessionTracked(state: SessionState): boolean {
+  return state.isTracked !== false || state.sampledOnError === true
 }
 
 /** Whether the session collects events but must not upload them until it reports an error. */

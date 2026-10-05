@@ -38,12 +38,23 @@ const enum EvictionTier {
   LAST_RESORT,
 }
 
+/**
+ * Held serialized, which is how the batch would have taken the event: what the host or the SDK
+ * mutates afterwards through a reference the event shares does not reach a release, and the bytes
+ * accounted for are the bytes that will leave.
+ */
 interface WithheldEvent {
-  event: RumEvent
+  serialized: string
   viewId: string
   time: number
   bytes: number
   tier: EvictionTier
+  isError: boolean
+}
+
+interface WithheldView {
+  serialized: string
+  date: number
 }
 
 export interface WithheldEventBuffer {
@@ -66,7 +77,7 @@ export function startWithheldEventBuffer(
   debug = false,
 ): WithheldEventBuffer {
   /** Latest event per view, in the order they were last updated. */
-  let views = new Map<string, RumEvent>()
+  let views = new Map<string, WithheldView>()
   let details: WithheldEvent[] = []
   let bytes = 0
   let currentViewId: string | undefined
@@ -174,44 +185,39 @@ export function startWithheldEventBuffer(
   }
 
   function hold(event: RumEvent) {
+    const serialized = jsonStringify(event)
+    const eventBytes = serialized === undefined ? Infinity : utf8Size(serialized)
+    if (serialized === undefined || eventBytes > WITHHELD_BUFFER_BYTES_LIMIT) {
+      // It could never be part of a released buffer: the batch carries nothing it cannot
+      // serialize, and holding an event larger than the whole budget would evict the minute before
+      // it. The releasing error takes the other path, where it is forwarded on its own.
+      droppedCount += 1
+      return
+    }
+
     if (event.type === 'view') {
       // Upsert: a view event is cumulative, so the latest one supersedes the ones before it. The
       // delete moves it to the back, so the first entry is the least recently updated view.
       views.delete(event.view.id)
-      views.set(event.view.id, event)
+      views.set(event.view.id, { serialized, date: event.date })
       // A view event carries its view's start date, so a late update of a view that already ended
       // does not make it current again - the next error hangs from the view really in progress.
       if (event.date >= currentViewDate) {
         currentViewDate = event.date
         currentViewId = event.view.id
       }
-      while (views.size > WITHHELD_BUFFER_VIEWS_LIMIT) {
-        const oldestViewId = views.keys().next().value as string
-        if (oldestViewId === currentViewId) {
-          // The view in progress is never evicted: move it to the back instead.
-          const currentView = views.get(oldestViewId)!
-          views.delete(oldestViewId)
-          views.set(oldestViewId, currentView)
-        }
-        views.delete(views.keys().next().value as string)
-      }
+      evictViews()
       prune()
       return
     }
 
-    const eventBytes = sizeOf(event)
-    if (eventBytes > WITHHELD_BUFFER_BYTES_LIMIT) {
-      // It could never be part of a released buffer, and holding it would evict the whole minute
-      // before it. The releasing error takes the other path, where it is forwarded on its own.
-      droppedCount += 1
-      return
-    }
     details.push({
-      event,
+      serialized,
       viewId: event.view.id,
       time: Date.now(),
       bytes: eventBytes,
       tier: getEvictionTier(event),
+      isError: event.type === 'error',
     })
     bytes += eventBytes
 
@@ -246,6 +252,27 @@ export function startWithheldEventBuffer(
         views.delete(viewId)
       }
     })
+  }
+
+  /**
+   * Keeps the views within their limit, least recently updated first. The view in progress and a
+   * view a held error hangs from are never evicted: they are the containers the errors need.
+   */
+  function evictViews() {
+    if (views.size <= WITHHELD_BUFFER_VIEWS_LIMIT) {
+      return
+    }
+    const keptViewIds = new Set(details.filter((held) => held.isError).map((held) => held.viewId))
+    if (currentViewId !== undefined) {
+      keptViewIds.add(currentViewId)
+    }
+    const evictableViewIds: string[] = []
+    views.forEach((_, viewId) => {
+      if (!keptViewIds.has(viewId)) {
+        evictableViewIds.push(viewId)
+      }
+    })
+    evictableViewIds.slice(0, Math.max(0, views.size - WITHHELD_BUFFER_VIEWS_LIMIT)).forEach((viewId) => views.delete(viewId))
   }
 
   /** Removes one event of the least valuable tier present. Returns false when there is none left. */
@@ -288,20 +315,19 @@ export function startWithheldEventBuffer(
     // sure to go, and the error is what the session is kept for. Views only order the release: a
     // detail with no held view - collected with page tracking off, or before the first page - is
     // still part of the errored session's history and goes out with it.
-    const orderedViews: RumEvent[] = []
+    const orderedViews: WithheldView[] = []
     views.forEach((view) => orderedViews.push(view))
     orderedViews.sort((left, right) => left.date - right.date)
-    const errors: RumEvent[] = []
-    const others: RumEvent[] = []
-    details.forEach((held) => (held.event.type === 'error' ? errors : others).push(held.event))
+    const errors: string[] = []
+    const others: string[] = []
+    details.forEach((held) => (held.isError ? errors : others).push(held.serialized))
+    const released = [...orderedViews.map((view) => view.serialized), ...errors, ...others]
     const stats = { viewsCount: views.size, eventsCount: details.length, droppedCount, bytes }
 
     // Cleared before forwarding: the batch may call host code synchronously while it flushes, and
     // an event collected there belongs after the release, not in a buffer about to be emptied.
     clearBuffer()
-    orderedViews.forEach(forward)
-    errors.forEach(forward)
-    others.forEach(forward)
+    released.forEach((serialized) => forward(JSON.parse(serialized) as RumEvent))
 
     if (debug) {
       try {
@@ -374,7 +400,10 @@ export function computeReleaseDelay(sessionId: string) {
 
 /** UTF-8 size of the serialized event, which is what the budget is promised in. */
 function sizeOf(event: RumEvent) {
-  const candidate = jsonStringify(event) ?? ''
+  return utf8Size(jsonStringify(event) ?? '')
+}
+
+function utf8Size(candidate: string) {
   let count = 0
   for (let i = 0; i < candidate.length; i += 1) {
     const code = candidate.charCodeAt(i)

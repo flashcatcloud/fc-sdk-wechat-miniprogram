@@ -22,7 +22,7 @@ export interface InitConfiguration {
   site?: string
   sessionSampleRate?: number
   /**
-   * Whether the sessions that `sessionSampleRate` did not draw still collect events, uploaded only
+   * Whether the sessions `sessionSampleRate` left out still collect events, uploaded only
    * if the session reports an error. Such a session keeps at most the last minute in memory and
    * uploads nothing if it never errors; on its first error that minute is uploaded and collection
    * continues normally. It only applies to what the plain rate missed.

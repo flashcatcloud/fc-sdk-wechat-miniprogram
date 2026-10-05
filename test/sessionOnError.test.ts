@@ -1,7 +1,7 @@
 import test from 'node:test'
 import type { TestContext } from 'node:test'
 import assert from 'node:assert/strict'
-import { isWithholdingEvents, startSessionManager } from '../packages/core/src/domain/session/sessionManager'
+import { isSessionTracked, isWithholdingEvents, startSessionManager } from '../packages/core/src/domain/session/sessionManager'
 import type { SessionState } from '../packages/core/src/domain/session/sessionManager'
 import { startRum } from '../packages/miniprogram-rum/src/boot/startRum'
 import { validateAndBuildRumConfiguration } from '../packages/miniprogram-rum/src/domain/configuration/configuration'
@@ -47,7 +47,7 @@ test('a session the plain draw missed is kept on error only when the switch is o
     })
     const session = manager.renew()
     const name = JSON.stringify(scenario)
-    assert.equal(session.isTracked, scenario.tracked, name)
+    assert.equal(isSessionTracked(session), scenario.tracked, name)
     assert.equal(session.sampledOnError === true, scenario.onError, name)
     assert.equal(isWithholdingEvents(session), scenario.onError, name)
     assert.equal(manager.findTrackedSession()?.id === session.id, scenario.tracked, name)
@@ -149,6 +149,17 @@ test('a session restored from storage keeps its on-error draw', () => {
   assert.equal(isWithholdingEvents(restored), true)
 })
 
+test('a session persisted by a previous SDK version is a plain session, never a withholding one', () => {
+  const store = createStore()
+  store.set({ id: 'legacy', created: Date.now(), expireAt: Date.now() + 60_000, isTracked: true })
+  const manager = startSessionManager(store, { sessionSampleRate: 0, sessionOnError: true })
+  const restored = manager.findTrackedSession()!
+  assert.equal(restored.id, 'legacy')
+  assert.equal(restored.sampledOnError, undefined)
+  assert.equal(isWithholdingEvents(restored), false)
+  assert.equal(manager.release('legacy'), false)
+})
+
 // --- startRum integration ---------------------------------------------------------------------
 
 let originalWxDescriptor: PropertyDescriptor | undefined
@@ -187,6 +198,7 @@ test.afterEach(() => {
 interface Harness {
   started: ReturnType<typeof startRum>
   intakeEvents: () => any[]
+  intakeRequests: () => number
   configRequests: RequestOptions[]
   hideApp: () => void
   collected: any[]
@@ -250,6 +262,7 @@ function startHarness(
     configRequests,
     storage,
     hideApp: () => hideCallbacks.forEach((callback) => callback()),
+    intakeRequests: () => intakePayloads.length,
     intakeEvents: () =>
       intakePayloads.flatMap((payload) =>
         payload
@@ -266,11 +279,11 @@ function enableTimers(t: TestContext) {
 
 test('an on-error session uploads nothing until it errors, then its view and error with the markers', (t) => {
   enableTimers(t)
-  const { started, intakeEvents, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true })
+  const { started, intakeEvents, intakeRequests, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true })
   started.startPage('pages/home')
   started.addCustomEvent('before-error')
   hideApp()
-  assert.equal(intakeEvents().length, 0, 'nothing leaves before the error, not even on app hide')
+  assert.equal(intakeRequests(), 0, 'no request at all leaves before the error, not even on app hide')
 
   started.addError('boom', 'custom')
   t.mock.timers.tick(3_000)
@@ -584,4 +597,23 @@ test('an error that itself renews the session is released with the view the rene
   assert.ok(events.every((event) => event.session.id === renewed.id), 'the first session never errored')
   assert.deepEqual(events.slice(0, 2).map((event) => event.type), ['view', 'error'])
   assert.equal(events.some((event) => event.type === 'custom'), false)
+})
+
+test('neither the flush timer nor app hide sends a request for an on-error session that never errors', (t) => {
+  enableTimers(t)
+  const { started, intakeRequests, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true, flushInterval: 1_000 })
+  started.startPage('pages/home')
+  started.addCustomEvent('held')
+  t.mock.timers.tick(120_000)
+  hideApp()
+  assert.equal(intakeRequests(), 0)
+})
+
+test('an on-error session is stored as sampled out, so an SDK without the switch never uploads it', () => {
+  const store = createStore()
+  const manager = startSessionManager(store, { sessionSampleRate: 0, sessionOnError: true })
+  const session = manager.renew()
+  assert.equal(store.get()!.isTracked, false)
+  assert.equal(store.get()!.sampledOnError, true)
+  assert.equal(manager.findTrackedSession()?.id, session.id, 'this SDK collects it')
 })

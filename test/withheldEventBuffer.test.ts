@@ -621,3 +621,56 @@ test('an event collected by host code while the release is forwarded is not lost
   t.mock.timers.tick(WITHHELD_BUFFER_RELEASE_MAX_DELAY)
   assert.equal(forwarded.length, 3, 'nothing is forwarded twice')
 })
+
+test('releases an event as it was collected, whatever was changed through it afterwards', (t) => {
+  const { collect, releasedAfterJitter } = setup(t)
+  collect('view')
+  const action = collect('action', { action: { id: 'a', type: 'tap', target: { name: 'button' } }, context: { step: 1 } }) as any
+  action.context.step = 2
+  collect('error')
+  const released = releasedAfterJitter().find((event) => event.type === 'action') as any
+  assert.equal(released.context.step, 1)
+})
+
+test('events that cannot be serialized take no room from the ones that can', (t) => {
+  const { collect, releasedAfterJitter } = setup(t)
+  collect('view')
+  const circular: Record<string, unknown> = {}
+  circular.self = circular
+  for (let i = 0; i <= WITHHELD_BUFFER_EVENTS_LIMIT; i += 1) {
+    collect('error', { context: circular, error: { id: `circular-${i}`, message: 'boom', source: 'app' } })
+  }
+  collect('error', { error: { id: 'valid', message: 'boom', source: 'app' } })
+  assert.deepEqual(
+    releasedAfterJitter().map((event: any) => event.error?.id ?? event.type),
+    ['view', 'valid'],
+  )
+})
+
+test('a view event larger than the whole budget is not held, and the one before it stands', (t) => {
+  const { collect, releasedAfterJitter } = setup(t)
+  collect('view', { _dd: { document_version: 1 } })
+  collect('view', { _dd: { document_version: 2 }, context: { padding: 'x'.repeat(WITHHELD_BUFFER_BYTES_LIMIT) } })
+  collect('error')
+  const views = releasedAfterJitter().filter((event) => event.type === 'view')
+  assert.equal(views.length, 1)
+  assert.equal((views[0] as any)._dd.document_version, 1)
+})
+
+test('the view a held error hangs from survives the view limit', (t) => {
+  const { collect, releasedAfterJitter, tick } = setup(t)
+  collect('view', { date: Date.now(), view: { id: 'view-0', url: 'p', name: 'p' } })
+  collect('error', { view: { id: 'view-0', url: 'p', name: 'p' } })
+  // Navigations inside the release jitter, each with a detail so its view is kept in the window.
+  for (let i = 1; i <= WITHHELD_BUFFER_VIEWS_LIMIT + 1; i += 1) {
+    tick(1)
+    collect('view', { date: Date.now(), view: { id: `view-${i}`, url: 'p', name: 'p' } })
+    collect('action', { view: { id: `view-${i}`, url: 'p', name: 'p' } })
+  }
+  const released = releasedAfterJitter()
+  const viewIds = released.filter((event) => event.type === 'view').map((event) => event.view.id)
+  assert.ok(viewIds.includes('view-0'), 'the error view is kept')
+  assert.ok(viewIds.includes(`view-${WITHHELD_BUFFER_VIEWS_LIMIT + 1}`), 'the view in progress is kept')
+  assert.equal(viewIds.length, WITHHELD_BUFFER_VIEWS_LIMIT)
+  assert.equal(viewIds[0], 'view-0', 'views leave oldest first')
+})

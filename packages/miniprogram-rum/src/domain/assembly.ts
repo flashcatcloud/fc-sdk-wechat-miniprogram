@@ -1,7 +1,7 @@
 import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 import type { ContextManager, SessionManager } from '@flashcatcloud/miniprogram-core'
 import type { EventRateLimiter } from '@flashcatcloud/miniprogram-core'
-import { createEventRateLimiter, generateUUID } from '@flashcatcloud/miniprogram-core'
+import { createEventRateLimiter, generateUUID, isSessionTracked } from '@flashcatcloud/miniprogram-core'
 import type { LifeCycle } from './lifeCycle'
 import { LifeCycleEventType } from './lifeCycle'
 import type { RawRumEvent, RumEventType } from '../rawRumEvent.types'
@@ -137,7 +137,7 @@ export function startRumAssembly({
       }
       session = sessionManager.renew()
       lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
-      if (session.isTracked === false) {
+      if (!isSessionTracked(session)) {
         return
       }
       if (rawEvent.type === 'view') {
@@ -147,7 +147,7 @@ export function startRumAssembly({
     sessionManager.expand()
     // A sampled-out session is still a valid session. Keep it alive until it
     // expires, but never emit its events or perform another sampling draw.
-    if (session.isTracked === false) {
+    if (!isSessionTracked(session)) {
       return
     }
     const page = findPage?.(eventTime) || currentPage
