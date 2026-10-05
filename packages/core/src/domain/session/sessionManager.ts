@@ -84,9 +84,10 @@ export function startSessionManager(
 ): SessionManager {
   let lastExpand = 0
   let forceNextSession = false
-  // Kept in memory as well as in the store: a release must hold for the rest of this process even
-  // if persisting it failed, or the withheld events would be held again.
-  let releasedSessionId: string | undefined
+  // The sessions this process released, applied to every lookup: the history holds copies taken
+  // before the release, and persisting it may have failed. A release must hold for the rest of the
+  // process either way, or the withheld events would be held again.
+  const releasedSessionIds: string[] = []
   const sessionHistory = createValueHistory<SessionState>(() => now(), {
     expireDelay: SESSION_TIME_OUT_DELAY,
     maxEntries: SESSION_HISTORY_MAX_ENTRIES,
@@ -182,11 +183,18 @@ export function startSessionManager(
     }
   }
 
+  function withReleaseMark(state: SessionState): SessionState {
+    if (releasedSessionIds.indexOf(state.id) !== -1) {
+      state.isReleased = true
+    }
+    return state
+  }
+
   function findSession(time?: number): SessionState | undefined {
     if (time !== undefined) {
       const historicalSession = sessionHistory.find(time)?.value
       if (historicalSession && !isExpiredAt(historicalSession, time)) {
-        return historicalSession
+        return withReleaseMark(historicalSession)
       }
       return undefined
     }
@@ -194,10 +202,7 @@ export function startSessionManager(
     if (!state || isExpiredAt(state, now())) {
       return undefined
     }
-    if (state.id === releasedSessionId) {
-      state.isReleased = true
-    }
-    return state
+    return withReleaseMark(state)
   }
 
   return {
@@ -224,7 +229,10 @@ export function startSessionManager(
       if (!state || state.id !== sessionId || !isWithholdingEvents(state)) {
         return false
       }
-      releasedSessionId = sessionId
+      releasedSessionIds.push(sessionId)
+      if (releasedSessionIds.length > SESSION_HISTORY_MAX_ENTRIES) {
+        releasedSessionIds.shift()
+      }
       state.isReleased = true
       try {
         store.set(state)

@@ -16,7 +16,7 @@ import { LifeCycleEventType } from '../domain/lifeCycle'
 import { generateUUID } from '@flashcatcloud/miniprogram-core'
 import type { PageCollection } from '../domain/page/pageCollection'
 import { createRemoteConfigurationController } from '../domain/configuration/remoteConfiguration'
-import { releaseSession, startSessionErrorTracking } from '../domain/trackSessionError'
+import { startSessionErrorTracking } from '../domain/trackSessionError'
 
 const noopPageCollection: PageCollection = {
   stop: () => undefined,
@@ -197,10 +197,13 @@ export function startRum(configuration: RumConfiguration, adapter: PlatformAdapt
     setForcedSession: () => {
       sessionManager.setForcedSession()
       // A session that withholds its events until it errors is released straight away: the host
-      // asked for this user now. Its draw still stands; only the next session is forced.
+      // asked for this user now. Its draw still stands; only the next session is forced. Announced
+      // whether or not this is what released it: a release an error already scheduled is still
+      // waiting on its jitter, and the host asked for it now.
       const session = sessionManager.findSession()
       if (session) {
-        releaseSession(lifeCycle, sessionManager, session.id, 'force')
+        sessionManager.release(session.id)
+        lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId: session.id, reason: 'force' })
       }
     },
     startPage: (name?: string) => {

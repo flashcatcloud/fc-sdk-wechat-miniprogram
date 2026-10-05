@@ -8,6 +8,7 @@ import { validateAndBuildRumConfiguration } from '../packages/miniprogram-rum/sr
 import type { RumInitConfiguration } from '../packages/miniprogram-rum/src/domain/configuration/configuration'
 import { LifeCycleEventType } from '../packages/miniprogram-rum/src/domain/lifeCycle'
 import type { PlatformAdapter, RequestOptions } from '../packages/miniprogram-platform/src/platform/types'
+import { computeReleaseDelay } from '../packages/miniprogram-rum/src/transport/withheldEventBuffer'
 
 function createStore() {
   let stored: SessionState | undefined
@@ -532,5 +533,21 @@ test('an error raised before the first page is released with the session', (t) =
   assert.deepEqual(
     events.slice(0, 3).map((event) => `${event.type}:${event.view.id === 'unknown' ? 'unknown' : 'page'}`),
     ['view:page', 'error:unknown', 'custom:unknown'],
+  )
+})
+
+test('setForcedSession sends a release still waiting on its jitter at once', (t) => {
+  enableTimers(t)
+  withRandom(t, 0.5)
+  const { started, intakeEvents } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true, flushInterval: 1 })
+  started.startPage('pages/home')
+  started.addError('boom', 'custom')
+  const session = started.sessionManager.findSession()!
+  assert.ok(computeReleaseDelay(session.id) > 1, 'the release is still waiting on its jitter')
+  started.setForcedSession()
+  t.mock.timers.tick(1)
+  assert.deepEqual(
+    intakeEvents().map((event) => event.type),
+    ['view', 'error'],
   )
 })

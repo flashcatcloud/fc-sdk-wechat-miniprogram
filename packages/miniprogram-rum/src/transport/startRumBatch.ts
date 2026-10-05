@@ -14,6 +14,9 @@ import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 import { createHttpRequest } from '@flashcatcloud/miniprogram-platform'
 import type { AppEvent } from '@flashcatcloud/miniprogram-platform'
 
+/** An event serialized to this many characters or more never leaves the batch. */
+export const MESSAGE_BYTES_LIMIT = 256 * 1024
+
 export function startRumBatch(
   configuration: RumConfiguration,
   lifeCycle: LifeCycle,
@@ -52,7 +55,7 @@ export function startRumBatch(
     encoder,
     request,
     flushController,
-    messageBytesLimit: 256 * 1024,
+    messageBytesLimit: MESSAGE_BYTES_LIMIT,
   })
 
   // Events reach the batch through the buffer, which forwards them straight away unless their

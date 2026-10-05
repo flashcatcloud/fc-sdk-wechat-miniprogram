@@ -1,5 +1,6 @@
 import type { SessionManager } from '@flashcatcloud/miniprogram-core'
-import { isWithholdingEvents } from '@flashcatcloud/miniprogram-core'
+import { isWithholdingEvents, jsonStringify } from '@flashcatcloud/miniprogram-core'
+import { MESSAGE_BYTES_LIMIT } from '../transport/startRumBatch'
 import type { LifeCycle } from './lifeCycle'
 import { LifeCycleEventType } from './lifeCycle'
 
@@ -23,18 +24,13 @@ export function startSessionErrorTracking(lifeCycle: LifeCycle, sessionManager: 
     if (!session || event.session?.id !== session.id || !isWithholdingEvents(session)) {
       return
     }
-    releaseSession(lifeCycle, sessionManager, session.id, 'error')
+    // An error the batch will not carry is as lost as one discarded before it, measured the way the
+    // batch measures it.
+    if ((jsonStringify(event)?.length ?? 0) >= MESSAGE_BYTES_LIMIT) {
+      return
+    }
+    if (sessionManager.release(session.id)) {
+      lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId: session.id, reason: 'error' })
+    }
   })
-}
-
-/** Releases the session if it still withholds its events, and announces it to the buffer once. */
-export function releaseSession(
-  lifeCycle: LifeCycle,
-  sessionManager: SessionManager,
-  sessionId: string,
-  reason: 'error' | 'force',
-) {
-  if (sessionManager.release(sessionId)) {
-    lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId, reason })
-  }
 }

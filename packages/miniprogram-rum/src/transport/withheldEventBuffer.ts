@@ -24,12 +24,6 @@ export const WITHHELD_BUFFER_VIEWS_LIMIT = 50
  */
 export const WITHHELD_BUFFER_RELEASE_MAX_DELAY = 3 * 1000
 
-/**
- * How many thrown-away sessions to remember, so their stragglers are thrown away too: an event is
- * assembled after the fact, so a request can complete after its session has already been renewed.
- */
-const DISCARDED_SESSIONS_REMEMBERED = 4
-
 /** What gets dropped first when the buffer is over budget. Lower goes first. */
 const enum EvictionTier {
   /** Requests that succeeded without complaint. */
@@ -78,7 +72,6 @@ export function startWithheldEventBuffer(
   let currentViewId: string | undefined
   let currentViewDate = -Infinity
   let withheldForSessionId: string | undefined
-  const discardedSessionIds: string[] = []
   let releaseTimer: ReturnType<typeof setTimeout> | undefined
   /** When the release was scheduled, which is what freezes the window - see {@link prune}. */
   let releaseScheduledAt: number | undefined
@@ -98,14 +91,15 @@ export function startWithheldEventBuffer(
       settleBuffer(true)
     }
 
-    if (
-      eventSessionId !== undefined &&
-      discardedSessionIds.indexOf(eventSessionId) !== -1 &&
-      session?.id !== eventSessionId
-    ) {
-      // Its session ended without ever reporting an error and what was held for it was thrown
-      // away. Letting a straggler through would store the very session the withholding avoided.
-      return
+    if (eventSessionId !== undefined && session?.id !== eventSessionId) {
+      // A straggler: its session ended before it was assembled. It goes the way that session went,
+      // read off the session itself rather than off what this buffer held for it - a session can
+      // end before any of its events reached the buffer. One that never reported an error uploads
+      // nothing; letting a straggler through would store the very session the withholding avoided.
+      const eventSession = sessionManager.findSession(event.date)
+      if (eventSession?.id === eventSessionId && isWithholdingEvents(eventSession)) {
+        return
+      }
     }
 
     if (session && isWithholdingEvents(session) && isFrom(session.id)) {
@@ -167,7 +161,7 @@ export function startWithheldEventBuffer(
     if (releaseTimer !== undefined) {
       release()
     } else if (discardIfUnreleased) {
-      discardBuffer()
+      clearBuffer()
     }
   }
 
@@ -312,15 +306,6 @@ export function startWithheldEventBuffer(
     clearBuffer()
   }
 
-  /** Throws the buffer away, and remembers whose it was so its stragglers go the same way. */
-  function discardBuffer() {
-    discardedSessionIds.push(withheldForSessionId!)
-    if (discardedSessionIds.length > DISCARDED_SESSIONS_REMEMBERED) {
-      discardedSessionIds.shift()
-    }
-    clearBuffer()
-  }
-
   function clearBuffer() {
     if (releaseTimer !== undefined) {
       clearTimeout(releaseTimer)
@@ -350,7 +335,9 @@ export function startWithheldEventBuffer(
 function getEvictionTier(event: RumEvent): EvictionTier {
   switch (event.type) {
     case 'error':
-      return EvictionTier.LAST_RESORT
+      // The SDK's own report is not what the session is kept for, and must not outlast the
+      // application error that is.
+      return event.error.source === 'agent' ? EvictionTier.LAST : EvictionTier.LAST_RESORT
     case 'resource': {
       // A request that failed is part of how the error happened; one that succeeded rarely is.
       // An unknown status code is treated like an ordinary success.

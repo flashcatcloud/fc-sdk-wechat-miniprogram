@@ -209,9 +209,11 @@ test('drops the buffer, and what is still arriving for it, when the session ends
   const { collect, forwarded, renew, releasedAfterJitter } = setup(t, { sessionSampleRate: 0 })
   const first = collect('view')
   collect('resource')
+  const startedAt = Date.now()
+  t.mock.timers.tick(10)
   renew()
   // A request of the discarded session completing after its renewal.
-  collect('resource', { session: first.session })
+  collect('resource', { date: startedAt, session: first.session })
   assert.equal(releasedAfterJitter().length, 0)
   assert.equal(forwarded.length, 0)
 })
@@ -230,35 +232,26 @@ test('sends a release that is still waiting on jitter when the session ends', (t
 test('settles the buffer when the session expired or stopped without a renewal yet', (t) => {
   const { collect, forwarded, sessionManager, releasedAfterJitter, getSession } = setup(t)
   const first = collect('view')
+  const startedAt = Date.now()
+  t.mock.timers.tick(10)
   sessionManager.expire()
-  collect('resource', { session: first.session })
+  collect('resource', { date: startedAt, session: first.session })
   assert.equal(releasedAfterJitter().length, 0)
   assert.equal(forwarded.length, 0)
   assert.ok(getSession())
 })
 
-test('still drops a straggler of a session discarded several renewals ago', (t) => {
+test('still drops a straggler of a session discarded many renewals ago', (t) => {
   const { collect, forwarded, renew } = setup(t)
   const first = collect('view')
-  for (let i = 0; i < 3; i += 1) {
+  const startedAt = Date.now()
+  for (let i = 0; i < 6; i += 1) {
+    t.mock.timers.tick(10)
     renew()
     collect('view', { view: { id: `view-${i + 2}`, url: 'p', name: 'p' } })
   }
-  renew()
-  collect('resource', { session: first.session })
+  collect('resource', { date: startedAt, session: first.session })
   assert.equal(forwarded.length, 0)
-})
-
-test('forgets a discarded session after four more have been discarded', (t) => {
-  const { collect, forwarded, renew } = setup(t)
-  const first = collect('view')
-  for (let i = 0; i < 4; i += 1) {
-    renew()
-    collect('view', { view: { id: `view-${i + 2}`, url: 'p', name: 'p' } })
-  }
-  renew()
-  collect('resource', { session: first.session })
-  assert.equal(forwarded.length, 1)
 })
 
 test('forwards a straggler of a session that was never withholding', (t) => {
@@ -383,14 +376,14 @@ test('forwards a releasing error larger than the budget on its own and keeps the
 test('evicts the newest error first when only errors are over budget', (t) => {
   const { collect, lifeCycle, getSession, forwarded } = setup(t)
   collect('view')
-  // Collected straight through the buffer, bypassing the trigger, to fill it with errors only.
+  // The first error schedules the release; the rest join the buffer while it waits on its jitter.
   for (let i = 0; i <= WITHHELD_BUFFER_EVENTS_LIMIT; i += 1) {
     lifeCycle.notify(LifeCycleEventType.RUM_EVENT_COLLECTED, {
       type: 'error',
       date: Date.now(),
       session: { id: getSession().id },
       view: { id: 'view-1' },
-      error: { id: `error-${i}`, message: 'boom', source: 'agent' },
+      error: { id: `error-${i}`, message: 'boom', source: 'app' },
     } as unknown as RumEvent)
   }
   lifeCycle.notify(LifeCycleEventType.SESSION_RELEASED, { sessionId: getSession().id, reason: 'force' })
@@ -508,4 +501,58 @@ test('releases detail collected before the first view alongside the views', (t) 
     releasedAfterJitter().map((event) => `${event.type}:${event.view.id}`),
     ['view:view-1', 'error:unknown', 'action:unknown'],
   )
+})
+
+test('drops a straggler of a withholding session that ended before it held anything', (t) => {
+  const { collect, forwarded, sessionManager, releasedAfterJitter, getSession } = setup(t)
+  const first = getSession()
+  const startedAt = Date.now()
+  t.mock.timers.tick(10)
+  sessionManager.expire()
+  t.mock.timers.tick(10)
+  // A request started in the session and completed after it was stopped, before any event of it
+  // reached the buffer.
+  collect('resource', { date: startedAt, session: { id: first.id } })
+  assert.equal(releasedAfterJitter().length, 0)
+  assert.equal(forwarded.length, 0)
+})
+
+test('forwards a straggler of a session released earlier in the process, after another release', (t) => {
+  const { collect, forwarded, sessionManager, renew, releasedAfterJitter, getSession } = setup(t)
+  const first = getSession()
+  const startedAt = Date.now()
+  collect('view')
+  collect('error')
+  releasedAfterJitter()
+  t.mock.timers.tick(10)
+  renew()
+  collect('view', { view: { id: 'view-2', url: 'p', name: 'p' } })
+  collect('error', { view: { id: 'view-2', url: 'p', name: 'p' } })
+  releasedAfterJitter()
+  const forwardedSoFar = forwarded.length
+  assert.equal(sessionManager.findSession(startedAt)?.id, first.id)
+  collect('resource', { date: startedAt, session: { id: first.id } })
+  assert.equal(forwarded.length, forwardedSoFar + 1)
+})
+
+test('the SDK own error report gives way to the releasing error when only errors are over budget', (t) => {
+  const { collect, releasedAfterJitter } = setup(t)
+  collect('view')
+  const padding = 'x'.repeat(40 * 1024)
+  collect('error', { context: { padding }, error: { id: 'limit', message: 'Reached max number of customs by minute: 2', source: 'agent' } })
+  collect('error', { context: { padding }, error: { id: 'releasing', message: 'boom', source: 'app' } })
+  assert.deepEqual(
+    releasedAfterJitter().map((event: any) => event.error?.id ?? event.type),
+    ['view', 'releasing'],
+  )
+})
+
+test('an error the batch would not carry releases nothing', (t) => {
+  const { collect, sessionManager, releasedAfterJitter, getSession } = setup(t)
+  collect('view')
+  collect('action')
+  collect('error', { error: { id: 'too-large', message: 'x'.repeat(256 * 1024), source: 'app' } })
+  assert.equal(releasedAfterJitter().length, 0)
+  assert.equal(sessionManager.findSession()?.isReleased, undefined)
+  assert.equal(getSession().id, sessionManager.findSession()?.id)
 })
