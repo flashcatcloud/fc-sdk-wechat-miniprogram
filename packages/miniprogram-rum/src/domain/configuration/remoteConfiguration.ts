@@ -29,6 +29,12 @@ interface RemoteConfigurationState {
 
 interface CachedRemoteConfiguration extends RemoteConfigurationState {
   formatVersion: 2
+  /**
+   * The SDK that wrote the record. Another version may have read the same response differently -
+   * a knob it did not know is missing from its record, and its ETag would then keep that knob
+   * missing through every 304 - so a record from another version is not reused.
+   */
+  sdkVersion: string
   etag?: string
 }
 
@@ -185,6 +191,7 @@ export function createRemoteConfigurationController(
   function persist(state: RemoteConfigurationState, nextEtag?: string) {
     const cached: CachedRemoteConfiguration = {
       formatVersion: CACHE_FORMAT_VERSION,
+      sdkVersion: SDK_VERSION,
       ...state,
       ...(nextEtag ? { etag: nextEtag } : {}),
     }
@@ -471,7 +478,7 @@ function parseResponse(data: unknown): ParsedResponse | undefined {
 }
 
 function isCachedRemoteConfiguration(value: unknown): value is CachedRemoteConfiguration {
-  if (!isRecord(value) || value.formatVersion !== CACHE_FORMAT_VERSION) {
+  if (!isRecord(value) || value.formatVersion !== CACHE_FORMAT_VERSION || value.sdkVersion !== SDK_VERSION) {
     return false
   }
   return (

@@ -42,7 +42,8 @@ export interface SessionStore {
 
 export interface SessionConfiguration {
   sessionSampleRate: number
-  sessionOnError: boolean
+  /** Omitted by a provider that predates the switch: the initialization value then applies. */
+  sessionOnError?: boolean
   rcVersion: number
   custom?: Record<string, unknown> | null
 }
@@ -143,7 +144,7 @@ export function startSessionManager(
       }
     }
     let resolvedSessionSampleRate = currentConfiguration.sessionSampleRate
-    let resolvedSessionOnError = currentConfiguration.sessionOnError
+    let resolvedSessionOnError = currentConfiguration.sessionOnError ?? sessionOnError
     if (beforeSampling) {
       try {
         const overriddenRate = beforeSampling({

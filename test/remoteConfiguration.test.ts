@@ -558,13 +558,14 @@ test('custom accessors return defensive copies that cannot mutate internal state
   controller.stop()
 })
 
-test('a cache written before custom existed stays usable while getRemoteConfig returns undefined', () => {
+test('a cache written by another SDK version is not reused: the next fetch carries no ETag', () => {
   const storage = new Map<string, unknown>()
   const seedAdapter = createAdapter(
     (options) =>
       options.success?.({
         statusCode: 200,
-        data: { schema_version: 1, version: 27, enabled: true, rum: { sessionSampleRate: 33 } },
+        data: { schema_version: 1, version: 27, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+        header: { ETag: '"config-27"' },
       }),
     storage,
   )
@@ -572,21 +573,29 @@ test('a cache written before custom existed stays usable while getRemoteConfig r
   seed.fetch()
   seed.stop()
 
-  // Rewrite the v2 cache as if custom had not been added yet.
+  // Rewrite the cache as an SDK that did not know the switch would have written it: the same
+  // response, the same ETag, and no sessionOnError.
   const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
   storage.set(
     cacheKey,
-    JSON.stringify({
-      formatVersion: 2,
-      sessionSampleRate: 33,
-      rcVersion: 27,
-      etag: '"config-27"',
-    }),
+    JSON.stringify({ formatVersion: 2, sdkVersion: '0.0.1', sessionSampleRate: 0, rcVersion: 27, etag: '"config-27"' }),
   )
 
-  const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 33, sessionOnError: false, rcVersion: 27, custom: null })
-  assert.equal(controller.getRemoteConfig(), undefined)
+  const adapter = createAdapter(
+    (options) =>
+      options.success?.({
+        statusCode: 200,
+        data: { schema_version: 1, version: 27, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+        header: { ETag: '"config-27"' },
+      }),
+    storage,
+  )
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
+  assert.equal(storage.has(cacheKey), false, 'the record of another version is removed')
+  controller.fetch()
+  assert.equal(adapter.requests[0].header?.['If-None-Match'], undefined, 'nothing to revalidate against')
+  assert.equal(controller.getSessionConfiguration().sessionOnError, true)
   controller.stop()
 })
 

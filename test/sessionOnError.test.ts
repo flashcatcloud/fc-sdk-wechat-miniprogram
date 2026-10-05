@@ -71,6 +71,15 @@ test('the delivered switch takes precedence over the initialization value', () =
   assert.equal(off.renew().isTracked, false)
 })
 
+test('a session configuration provider that omits the switch keeps the initialization value', () => {
+  const manager = startSessionManager(createStore(), {
+    sessionSampleRate: 0,
+    sessionOnError: true,
+    getSessionConfiguration: () => ({ sessionSampleRate: 0, rcVersion: 1, custom: null }),
+  })
+  assert.equal(manager.renew().sampledOnError, true)
+})
+
 test('beforeSampling drawing a visitor to 0 turns the switch off, a rate it leaves alone keeps it', (t) => {
   const zero = startSessionManager(createStore(), { sessionSampleRate: 50, sessionOnError: true, beforeSampling: () => 0 })
   const excluded = zero.renew()

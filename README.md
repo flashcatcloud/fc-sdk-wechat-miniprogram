@@ -183,7 +183,7 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 设置 `sessionOnError: true`（或由远程配置 `rum.sessionOnError` 下发）后，`sessionSampleRate` 没抽中的 Session 也会照常采集，但事件只保存在内存里、不上传：
 
 - 只保留最近 60 秒的事件（view 之外最多 200 条、64 KiB；超出时先丢成功的请求，错误最后才丢）。
-- 该 Session 出现第一个错误时，在 0~3 秒的延迟（按 Session 散列，分散上报）后把缓存的 view、错误和其他事件一次性交给上报队列，之后正常实时上报。被 `beforeSend` 丢弃的错误、SDK 自身产生的错误不会触发上传。
+- 该 Session 出现第一个错误时，在 0~3 秒的延迟（按 Session 散列，分散上报）后把缓存的 view、错误和其他事件一次性交给上报队列，之后正常实时上报。被 `beforeSend` 丢弃、被限流、无法序列化或超过单条事件上限的错误，以及 SDK 自身产生的错误，不会触发上传。
 - 小程序切到后台时，已触发但仍在延迟中的上传会立即发出；尚未出错的缓存会保留，回到前台后继续生效。
 - Session 结束（超时、`stopSession()` 或续期）时仍未出错，缓存直接丢弃，这个 Session 不会出现在控制台中。
 - 这类 Session 的 view 事件带有 `session.sampled_for_error: true`，上报的 `_dd.configuration.session_sample_rate` 为 `0`，表示它只代表自己，不按采样率放大。
@@ -238,7 +238,7 @@ flashcatRum.setForcedSession()
 flashcatRum.stopSession() // 结束当前 Session，之后创建的新 Session 会被强制采集
 ```
 
-- 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
+- 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转（正在缓存事件的异常回采 Session 会被立即放行，见下）。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
 - 标记在 Session 创建后立即消耗，之后恢复常规抽样。
 - 优先级高于 `beforeSampling`：被标记的 Session 即使采样率为 0 也会被采集。
 - 当前 Session 如果是正在缓存事件、等待出错的异常回采 Session，调用后立即将缓存交给上报队列并恢复正常上报（不等待错误或放行延迟）。
