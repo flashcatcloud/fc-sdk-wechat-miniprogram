@@ -24,9 +24,10 @@ export function startSessionErrorTracking(lifeCycle: LifeCycle, sessionManager: 
     if (!session || event.session?.id !== session.id || !isWithholdingEvents(session)) {
       return
     }
-    // An error the batch will not carry is as lost as one discarded before it, measured the way the
-    // batch measures it.
-    if ((jsonStringify(event)?.length ?? 0) >= MESSAGE_BYTES_LIMIT) {
+    // An error the batch will not carry - too large, or not serializable at all - is as lost as one
+    // discarded before it, judged the way the batch judges it.
+    const serialized = jsonStringify(event)
+    if (!serialized || serialized.length >= MESSAGE_BYTES_LIMIT) {
       return
     }
     if (sessionManager.release(session.id)) {

@@ -88,7 +88,15 @@ export function startWithheldEventBuffer(
     if (withheldForSessionId !== undefined && session?.id !== withheldForSessionId) {
       // The withholding session is gone. A renewal settles the buffer before any event of the new
       // session is assembled; this catches an expiry or a stop that no renewal has followed yet.
+      const wasWithheldFor = withheldForSessionId
+      const wasReleased = releaseTimer !== undefined
       settleBuffer(true)
+      if (!wasReleased && isFrom(wasWithheldFor)) {
+        // A straggler of the session just thrown away, caught here because the history may no
+        // longer answer for it: an event dated at the very instant the session ended falls outside
+        // the span the history keeps for it.
+        return
+      }
     }
 
     if (eventSessionId !== undefined && session?.id !== eventSessionId) {
@@ -286,24 +294,22 @@ export function startWithheldEventBuffer(
     const errors: RumEvent[] = []
     const others: RumEvent[] = []
     details.forEach((held) => (held.event.type === 'error' ? errors : others).push(held.event))
+    const stats = { viewsCount: views.size, eventsCount: details.length, droppedCount, bytes }
+
+    // Cleared before forwarding: the batch may call host code synchronously while it flushes, and
+    // an event collected there belongs after the release, not in a buffer about to be emptied.
+    clearBuffer()
     orderedViews.forEach(forward)
     errors.forEach(forward)
     others.forEach(forward)
 
     if (debug) {
       try {
-        console.log('[FlashCat RUM][Debug] Error session event buffer released', {
-          viewsCount: views.size,
-          eventsCount: details.length,
-          droppedCount,
-          bytes,
-        })
+        console.log('[FlashCat RUM][Debug] Error session event buffer released', stats)
       } catch {
         // Console implementations are host code and must not affect the release.
       }
     }
-
-    clearBuffer()
   }
 
   function clearBuffer() {

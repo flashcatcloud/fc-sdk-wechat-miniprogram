@@ -551,3 +551,37 @@ test('setForcedSession sends a release still waiting on its jitter at once', (t)
     ['view', 'error'],
   )
 })
+
+test('the view update emitted while the releasing error is counted joins the release', (t) => {
+  enableTimers(t)
+  const { started, intakeEvents, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true })
+  started.startPage('pages/home')
+  // Hidden, so the page has no update interval and the error count change emits a view at once,
+  // inside the handling of the error and before the error itself is assembled.
+  hideApp()
+  started.addError('boom', 'custom')
+  t.mock.timers.tick(3_000)
+  hideApp()
+  const events = intakeEvents()
+  assert.deepEqual(events.slice(0, 2).map((event) => event.type), ['view', 'error'])
+  assert.equal(events[0].view.error.count, 1, 'the released view already counts the error')
+})
+
+test('an error that itself renews the session is released with the view the renewal opens', (t) => {
+  enableTimers(t)
+  const { started, intakeEvents, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true })
+  started.startPage('pages/home')
+  started.addCustomEvent('held-by-the-first-session')
+  t.mock.timers.tick(1_000)
+  started.sessionManager.expire()
+  t.mock.timers.tick(1_000)
+  started.addError('boom', 'custom')
+  const renewed = started.sessionManager.findSession()!
+  t.mock.timers.tick(3_000)
+  hideApp()
+  const events = intakeEvents()
+  assert.ok(events.length > 0)
+  assert.ok(events.every((event) => event.session.id === renewed.id), 'the first session never errored')
+  assert.deepEqual(events.slice(0, 2).map((event) => event.type), ['view', 'error'])
+  assert.equal(events.some((event) => event.type === 'custom'), false)
+})

@@ -556,3 +556,68 @@ test('an error the batch would not carry releases nothing', (t) => {
   assert.equal(sessionManager.findSession()?.isReleased, undefined)
   assert.equal(getSession().id, sessionManager.findSession()?.id)
 })
+
+test('a release timer that fires after the session was stopped still delivers', (t) => {
+  const { collect, forwarded, sessionManager, releasedAfterJitter } = setup(t)
+  collect('view')
+  collect('error')
+  sessionManager.expire()
+  assert.deepEqual(
+    releasedAfterJitter().map((event) => event.type),
+    ['view', 'error'],
+  )
+  assert.equal(forwarded.length, 2)
+})
+
+test('an error that cannot be serialized releases nothing', (t) => {
+  const { collect, sessionManager, releasedAfterJitter } = setup(t)
+  collect('view')
+  const circular: Record<string, unknown> = {}
+  circular.self = circular
+  collect('error', { context: circular })
+  assert.equal(releasedAfterJitter().length, 0)
+  assert.equal(sessionManager.findSession()?.isReleased, undefined)
+})
+
+test('drops a straggler dated at the very instant its withholding session ended', (t) => {
+  const { collect, forwarded, sessionManager, releasedAfterJitter, getSession } = setup(t)
+  collect('view')
+  // Stopped from inside the collection of an event the session had already been resolved for.
+  sessionManager.expire()
+  collect('resource', { date: Date.now(), session: { id: getSession().id } })
+  assert.equal(releasedAfterJitter().length, 0)
+  assert.equal(forwarded.length, 0)
+})
+
+test('an event collected by host code while the release is forwarded is not lost', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 })
+  const lifeCycle = new LifeCycle()
+  const sessionManager = startSessionManager(createStore(), { sessionSampleRate: 0, sessionOnError: true })
+  const session = sessionManager.renew()
+  const errorTracking = startSessionErrorTracking(lifeCycle, sessionManager)
+  const forwarded: RumEvent[] = []
+  let reentered = false
+  const event = (type: RumEvent['type'], id: string) =>
+    ({ type, date: Date.now(), session: { id: session.id }, view: { id: 'view-1' }, error: { id, message: 'boom', source: 'app' } }) as unknown as RumEvent
+  const buffer = startWithheldEventBuffer(lifeCycle, sessionManager, (forwardedEvent) => {
+    forwarded.push(forwardedEvent)
+    if (!reentered) {
+      // Host code reached from the batch reports an error of its own.
+      reentered = true
+      lifeCycle.notify(LifeCycleEventType.RUM_EVENT_COLLECTED, event('error', 'nested'))
+    }
+  })
+  t.after(() => {
+    buffer.stop()
+    errorTracking.unsubscribe()
+  })
+  lifeCycle.notify(LifeCycleEventType.RUM_EVENT_COLLECTED, event('view', 'v'))
+  lifeCycle.notify(LifeCycleEventType.RUM_EVENT_COLLECTED, event('error', 'releasing'))
+  t.mock.timers.tick(WITHHELD_BUFFER_RELEASE_MAX_DELAY)
+  assert.deepEqual(
+    forwarded.map((forwardedEvent: any) => (forwardedEvent.type === 'view' ? 'view' : forwardedEvent.error.id)),
+    ['view', 'nested', 'releasing'],
+  )
+  t.mock.timers.tick(WITHHELD_BUFFER_RELEASE_MAX_DELAY)
+  assert.equal(forwarded.length, 3, 'nothing is forwarded twice')
+})

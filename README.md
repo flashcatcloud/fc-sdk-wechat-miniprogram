@@ -241,7 +241,7 @@ flashcatRum.stopSession() // 结束当前 Session，之后创建的新 Session �
 - 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
 - 标记在 Session 创建后立即消耗，之后恢复常规抽样。
 - 优先级高于 `beforeSampling`：被标记的 Session 即使采样率为 0 也会被采集。
-- 当前 Session 如果是正在缓存事件、等待出错的异常回采 Session，调用后立即上传缓存并恢复实时上报（不等待错误）。
+- 当前 Session 如果是正在缓存事件、等待出错的异常回采 Session，调用后立即将缓存交给上报队列并恢复正常上报（不等待错误或放行延迟）。
 - 初始化前调用会被保留到首个已创建 Session 之后的下一次 Session，不会追溯改变首个 Session。
 
 ## API 文档
