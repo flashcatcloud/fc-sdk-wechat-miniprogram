@@ -65,11 +65,15 @@ export function startRumBatch(
     sessionManager,
     (event) => {
       if (configuration.debug) {
-        console.log('[FlashCat RUM][Debug] RUM event collected', {
-          type: event.type,
-          date: event.date,
-          event,
-        })
+        try {
+          console.log('[FlashCat RUM][Debug] RUM event collected', {
+            type: event.type,
+            date: event.date,
+            event,
+          })
+        } catch {
+          // Console implementations are host code and must not cost an event, let alone a release.
+        }
       }
       batch.add(event as unknown as Record<string, unknown>)
     },

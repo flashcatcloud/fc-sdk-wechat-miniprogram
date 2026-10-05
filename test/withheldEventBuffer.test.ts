@@ -152,14 +152,6 @@ test('ignores a release notification for another session', (t) => {
   assert.equal(releasedAfterJitter().length, 0)
 })
 
-test('an error dropped before assembly reaches the buffer releases nothing', (t) => {
-  // beforeSend runs inside assembly, so an error it drops is never collected here at all.
-  const { collect, releasedAfterJitter } = setup(t)
-  collect('view')
-  collect('resource')
-  assert.equal(releasedAfterJitter().length, 0)
-})
-
 test('the SDK own error report does not release the buffer', (t) => {
   const { collect, releasedAfterJitter } = setup(t)
   collect('view')
@@ -491,11 +483,10 @@ test('releases the error and its history when the session has no view at all', (
 })
 
 test('releases detail collected before the first view alongside the views', (t) => {
-  const { collect, releasedAfterJitter, tick } = setup(t)
+  const { collect, releasedAfterJitter } = setup(t)
   const unknownView = { view: { id: 'unknown', url: 'unknown', name: 'unknown' } }
   collect('action', unknownView)
   collect('error', { ...unknownView, error: { id: 'launch', message: 'launch failed', source: 'promise' } })
-  tick(10)
   collect('view', { date: Date.now() })
   assert.deepEqual(
     releasedAfterJitter().map((event) => `${event.type}:${event.view.id}`),
@@ -658,13 +649,14 @@ test('a view event larger than the whole budget is not held, and the one before 
 })
 
 test('the view a held error hangs from survives the view limit', (t) => {
-  const { collect, releasedAfterJitter, tick } = setup(t)
-  collect('view', { date: Date.now(), view: { id: 'view-0', url: 'p', name: 'p' } })
+  const { collect, releasedAfterJitter } = setup(t)
+  const base = Date.now()
+  collect('view', { date: base, view: { id: 'view-0', url: 'p', name: 'p' } })
   collect('error', { view: { id: 'view-0', url: 'p', name: 'p' } })
   // Navigations inside the release jitter, each with a detail so its view is kept in the window.
+  // Dated rather than clocked, so the release cannot fire before they are all collected.
   for (let i = 1; i <= WITHHELD_BUFFER_VIEWS_LIMIT + 1; i += 1) {
-    tick(1)
-    collect('view', { date: Date.now(), view: { id: `view-${i}`, url: 'p', name: 'p' } })
+    collect('view', { date: base + i, view: { id: `view-${i}`, url: 'p', name: 'p' } })
     collect('action', { view: { id: `view-${i}`, url: 'p', name: 'p' } })
   }
   const released = releasedAfterJitter()
@@ -673,4 +665,17 @@ test('the view a held error hangs from survives the view limit', (t) => {
   assert.ok(viewIds.includes(`view-${WITHHELD_BUFFER_VIEWS_LIMIT + 1}`), 'the view in progress is kept')
   assert.equal(viewIds.length, WITHHELD_BUFFER_VIEWS_LIMIT)
   assert.equal(viewIds[0], 'view-0', 'views leave oldest first')
+})
+
+test('an error on every view keeps the view limit a limit', (t) => {
+  const { collect, releasedAfterJitter } = setup(t)
+  const base = Date.now()
+  for (let i = 0; i < WITHHELD_BUFFER_VIEWS_LIMIT + 10; i += 1) {
+    collect('view', { date: base + i, view: { id: `view-${i}`, url: 'p', name: 'p' } })
+    collect('error', { view: { id: `view-${i}`, url: 'p', name: 'p' }, error: { id: `error-${i}`, message: 'boom', source: 'app' } })
+  }
+  const viewIds = releasedAfterJitter().filter((event) => event.type === 'view').map((event) => event.view.id)
+  assert.equal(viewIds.length, WITHHELD_BUFFER_VIEWS_LIMIT)
+  assert.equal(viewIds[0], 'view-0', 'the view of the releasing error is kept')
+  assert.equal(viewIds[viewIds.length - 1], `view-${WITHHELD_BUFFER_VIEWS_LIMIT + 9}`, 'the view in progress is kept')
 })

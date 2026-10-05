@@ -626,3 +626,22 @@ test('an on-error session is stored as sampled out, so an SDK without the switch
   assert.equal(store.get()!.sampledOnError, true)
   assert.equal(manager.findTrackedSession()?.id, session.id, 'this SDK collects it')
 })
+
+test('a console that throws does not cost the release its history', (t) => {
+  enableTimers(t)
+  const { started, intakeEvents, hideApp } = startHarness(t, { sessionSampleRate: 0, sessionOnError: true, debug: true })
+  started.startPage('pages/home')
+  started.addCustomEvent('before-error')
+  started.addError('boom', 'custom')
+  // Throws while the release forwards; the transport's own logging is outside this branch.
+  const log = t.mock.method(console, 'log', () => {
+    throw new Error('console is not available')
+  })
+  t.mock.timers.tick(3_000)
+  log.mock.restore()
+  hideApp()
+  assert.deepEqual(
+    intakeEvents().slice(0, 3).map((event) => event.type),
+    ['view', 'error', 'custom'],
+  )
+})

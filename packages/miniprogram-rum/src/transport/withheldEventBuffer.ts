@@ -255,14 +255,19 @@ export function startWithheldEventBuffer(
   }
 
   /**
-   * Keeps the views within their limit, least recently updated first. The view in progress and a
-   * view a held error hangs from are never evicted: they are the containers the errors need.
+   * Keeps the views within their limit, least recently updated first. The view in progress and the
+   * view the first held error hangs from are never evicted: they are the containers the error that
+   * released the session and the next one need. Only those two, so the limit stays a limit.
    */
   function evictViews() {
     if (views.size <= WITHHELD_BUFFER_VIEWS_LIMIT) {
       return
     }
-    const keptViewIds = new Set(details.filter((held) => held.isError).map((held) => held.viewId))
+    const keptViewIds = new Set<string>()
+    const firstError = details.find((held) => held.isError)
+    if (firstError) {
+      keptViewIds.add(firstError.viewId)
+    }
     if (currentViewId !== undefined) {
       keptViewIds.add(currentViewId)
     }
@@ -356,10 +361,11 @@ export function startWithheldEventBuffer(
   return {
     flushOnAppHide: () => settleBuffer(false),
     stop: () => {
-      settleBuffer(true)
+      // Unsubscribed first, so nothing listens on any more whatever settling runs into.
       eventSubscription.unsubscribe()
       releaseSubscription.unsubscribe()
       renewSubscription.unsubscribe()
+      settleBuffer(true)
     },
   }
 }
