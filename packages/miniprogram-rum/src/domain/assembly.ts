@@ -1,7 +1,7 @@
 import type { PlatformAdapter } from '@flashcatcloud/miniprogram-platform'
 import type { ContextManager, SessionManager } from '@flashcatcloud/miniprogram-core'
 import type { EventRateLimiter } from '@flashcatcloud/miniprogram-core'
-import { createEventRateLimiter, generateUUID } from '@flashcatcloud/miniprogram-core'
+import { createEventRateLimiter, generateUUID, isSessionTracked } from '@flashcatcloud/miniprogram-core'
 import type { LifeCycle } from './lifeCycle'
 import { LifeCycleEventType } from './lifeCycle'
 import type { RawRumEvent, RumEventType } from '../rawRumEvent.types'
@@ -104,7 +104,8 @@ export function startRumAssembly({
           error: {
             id: generateUUID(),
             message: error.message,
-            source: 'custom',
+            // The SDK's own report, which must not count as the application reporting an error.
+            source: error.source,
           },
         })
       })
@@ -127,9 +128,16 @@ export function startRumAssembly({
     const shouldUseEventTimeForSession = rawEvent.type !== 'view' || (rawView?.id && rawView.id !== currentPage?.id)
     let session = sessionManager.findSession(shouldUseEventTimeForSession ? eventTime : undefined)
     if (!session) {
+      if (rawEvent.type === 'view' && shouldUseEventTimeForSession) {
+        // An update of a view that is no longer current, and started when no session existed - the
+        // page whose own view renewed the session, finalized by that renewal. It belongs to no
+        // session, and a session created now could not contain it: renewing here would only start a
+        // second session behind the one just created, leaving that one orphaned.
+        return
+      }
       session = sessionManager.renew()
       lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
-      if (session.isTracked === false) {
+      if (!isSessionTracked(session)) {
         return
       }
       if (rawEvent.type === 'view') {
@@ -139,7 +147,7 @@ export function startRumAssembly({
     sessionManager.expand()
     // A sampled-out session is still a valid session. Keep it alive until it
     // expires, but never emit its events or perform another sampling draw.
-    if (session.isTracked === false) {
+    if (!isSessionTracked(session)) {
       return
     }
     const page = findPage?.(eventTime) || currentPage
@@ -159,7 +167,12 @@ export function startRumAssembly({
             ...rawEvent._dd,
             configuration: {
               ...rawEvent._dd.configuration,
-              session_sample_rate: session.sessionSampleRate ?? configuration.sessionSampleRate,
+              // A session kept only because it errored stands for itself rather than for
+              // `100 / rate` sessions, and 0 is what tells the backend not to scale it. Decided
+              // from the session itself so a restored session reports it too.
+              session_sample_rate: session.sampledOnError
+                ? 0
+                : (session.sessionSampleRate ?? configuration.sessionSampleRate),
               rc_version: session.rcVersion ?? 0,
             },
           },
@@ -176,6 +189,8 @@ export function startRumAssembly({
         type: 'user',
         has_replay: false,
         sampled_for_replay: false,
+        // Tells the backend this session's detail only starts where the withheld buffer reached.
+        ...(rawEvent.type === 'view' && session.sampledOnError ? { sampled_for_error: true } : {}),
       },
       view: {
         ...rawView,

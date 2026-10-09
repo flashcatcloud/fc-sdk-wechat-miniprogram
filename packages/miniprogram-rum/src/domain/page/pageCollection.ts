@@ -1,6 +1,6 @@
 import type { Observable } from '@flashcatcloud/miniprogram-core'
 import type { AppEvent, PageEvent } from '@flashcatcloud/miniprogram-platform'
-import { createValueHistory, generateUUID, toServerDuration } from '@flashcatcloud/miniprogram-core'
+import { createValueHistory, generateUUID, isSessionTracked as isTrackedSession, toServerDuration } from '@flashcatcloud/miniprogram-core'
 import { LifeCycleEventType } from '../lifeCycle'
 import type { LifeCycle } from '../lifeCycle'
 import type { PageHistoryEntry } from '../contexts/pageHistory'
@@ -305,7 +305,7 @@ export function startPageCollection(
       id: generateUUID(),
       name: previousPage.name,
       startTime: session.created,
-      isTracked: session.isTracked !== false,
+      isTracked: isTrackedSession(session),
       referrer: previousPage.referrer,
       loadingType: previousPage.loadingType,
       documentVersion: 0,
@@ -317,7 +317,7 @@ export function startPageCollection(
     if (session.created - previousPage.startTime < PAGE_HISTORY_EXPIRE_DELAY) {
       emitPageHidden(previousPage, session.created, 'terminated')
     }
-    if (session.isTracked === false) {
+    if (!isTrackedSession(session)) {
       return
     }
     emitViewUpdate(renewedPage)

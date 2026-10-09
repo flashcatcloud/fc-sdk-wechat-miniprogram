@@ -148,7 +148,8 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 | `env`                        | string            | ❌   | -                        | 环境（dev/test/prod）                                     |
 | `version`                    | string            | ❌   | -                        | 应用版本号                                                |
 | `sessionSampleRate`          | number            | ❌   | 100                      | 会话采样率（0-100）                                       |
-| `remoteConfigurationEnabled` | boolean           | ❌   | false                    | 是否启用远程配置（会话采样率与 `custom`）                 |
+| `sessionOnError`             | boolean           | ❌   | false                    | 未被采样的会话出错时才上报（异常会话回采）                |
+| `remoteConfigurationEnabled` | boolean           | ❌   | false                    | 是否启用远程配置（采样率、异常会话回采与 `custom`）       |
 | `beforeSampling`             | function          | ❌   | -                        | 创建新 Session 前同步调整采样率                           |
 | `flushInterval`              | number            | ❌   | 15000                    | 上报间隔（毫秒）                                          |
 | `trackPages`                 | boolean           | ❌   | true                     | 是否追踪页面                                              |
@@ -163,18 +164,32 @@ SDK 通过以下机制实现自动追踪，**无需手动关联 APP 事件**：
 
 设置 `remoteConfigurationEnabled: true` 后，SDK 会在初始化时同步读取上次缓存的有效配置，并在初始化完成后及每次新 Session 创建时异步请求 `/api/v2/rum/config`。同一时刻只保留一条包含重试在内的请求链；配置请求不阻塞初始化和事件采集，也不会被记录为 RUM resource 或 error 事件。
 
-远程配置只消费两个字段：`rum.sessionSampleRate` 和顶层 `custom`；追踪采样率、回放采样率和隐私等级等字段会被忽略。
+远程配置只消费三个字段：`rum.sessionSampleRate`、`rum.sessionOnError` 和顶层 `custom`；追踪采样率、回放采样率和隐私等级等字段会被忽略。`rum.sessionOnError` 只接受布尔值，缺省或非布尔值表示沿用初始化值。
 
 会话采样只在创建 Session 时执行一次：
 
 - 冷启动已有有效缓存时，首个新 Session 直接使用缓存中的采样率。
 - 没有缓存时，首个 Session 使用初始化的 `sessionSampleRate`；随后拉取到的正数采样率变更通常只影响之后创建的 Session。
-- 采样率在 `0` 和正数之间双向切换时立即结束当前普通 Session，下一次事件使用新配置创建 Session；`0` 调到正数后按新比例重新抽签，并不保证当前用户一定中签。正数之间调整不改变当前 Session。
+- 采样率调为 `0` 时立即结束当前被采集的 Session（急停）；例外是靠 `sessionOnError` 保留的 Session，只要开关仍然打开就不结束——采样率 `0` 加开关正是「只要异常会话」的正常配置。
+- 以采样率 `0` 抽签的未采集 Session，在采样率调为正数或打开 `sessionOnError` 时立即结束，下一次事件按新配置重新抽签，并不保证当前用户一定中签。在正数采样率下没抽中的 Session 不会因此重抽。正数之间调整不改变当前 Session。
 - 已生效的强制 Session 是上述即时切换的唯一例外。其他情况下也可调用 `flashcatRum.stopSession()`，让下一次事件创建的新 Session 使用最新配置。
 - 配置接口不可用、响应非法或缓存不可读时，SDK 安全回退到初始化采样率，不影响正常采集。
 - 200 响应必须包含 `schema_version: 1`、非负整数 `version` 和布尔值 `enabled`；不兼容或不完整响应不会覆盖当前有效配置。
 
 远程配置沿用现有 `site` 或 `proxy`。因此直连模式无需额外添加小程序合法域名；代理模式需确保现有代理同时转发 `/api/v2/rum/config`，并建议透传 ETag 以使用 `304 Not Modified`。SDK 不做定时轮询，只在初始化和新 Session 创建时拉取，失败时进行有限重试。
+
+#### 异常会话回采
+
+设置 `sessionOnError: true`（或由远程配置 `rum.sessionOnError` 下发）后，`sessionSampleRate` 没抽中的 Session 也会照常采集，但事件只保存在内存里、不上传：
+
+- 只保留最近 60 秒的事件（view 之外最多 200 条、64 KiB；超出时先丢成功的请求，错误最后才丢）。
+- 该 Session 出现第一个错误时，在 0~3 秒的延迟（按 Session 散列，分散上报）后把缓存的 view、错误和其他事件一次性交给上报队列，之后正常实时上报。被 `beforeSend` 丢弃、被限流、无法序列化或达到单条事件上限的错误，以及 SDK 自身产生的错误，不会触发上传。
+- 小程序切到后台时，已触发但仍在延迟中的上传会立即发出；尚未出错的缓存会保留，回到前台后继续生效。
+- Session 结束（超时、`stopSession()` 或续期）时仍未出错，缓存直接丢弃，这个 Session 不会出现在控制台中。
+- 这类 Session 的 view 事件带有 `session.sampled_for_error: true`，上报的 `_dd.configuration.session_sample_rate` 为 `0`，表示它只代表自己，不按采样率放大。
+- 只作用于普通采样没抽中的 Session，`sessionSampleRate` 为 100 时没有作用对象。典型配置是 `sessionSampleRate: 0` 加 `sessionOnError: true`，即只采集出错的 Session。
+- `beforeSampling` 返回 `0` 时同时关闭该开关，被排除的用户出错也不会上报。
+- 进程被关闭时内存中的缓存随之丢失。
 
 #### 读取 custom
 
@@ -223,9 +238,10 @@ flashcatRum.setForcedSession()
 flashcatRum.stopSession() // 结束当前 Session，之后创建的新 Session 会被强制采集
 ```
 
-- 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
+- 标记只作用于**下一个新建的 Session**，当前 Session 的抽签结果永不翻转（正在缓存事件的异常回采 Session 会被立即放行，见下）。因此 support flow 需要在 `setForcedSession()` 之后结束当前 Session，才会开始强制采集。
 - 标记在 Session 创建后立即消耗，之后恢复常规抽样。
 - 优先级高于 `beforeSampling`：被标记的 Session 即使采样率为 0 也会被采集。
+- 当前 Session 如果是正在缓存事件、等待出错的异常回采 Session，调用后立即将缓存交给上报队列并恢复正常上报（不等待错误或放行延迟）。
 - 初始化前调用会被保留到首个已创建 Session 之后的下一次 Session，不会追溯改变首个 Session。
 
 ## API 文档

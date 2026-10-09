@@ -31,6 +31,7 @@ export function startRumSessionManager(
   return startSessionManager(createSessionStore(adapter), {
     trackAnonymousUser: configuration.trackAnonymousUser,
     sessionSampleRate: configuration.sessionSampleRate,
+    sessionOnError: configuration.sessionOnError,
     getSessionConfiguration,
     beforeSampling: configuration.beforeSampling,
     debug: configuration.debug,

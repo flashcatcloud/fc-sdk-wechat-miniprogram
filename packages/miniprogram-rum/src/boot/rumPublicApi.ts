@@ -52,7 +52,7 @@ export function makeRumPublicApi(): RumPublicApi {
       setUser: (context) => started.userContext.setContext(context),
       startPage: started.startPage,
       stopSession: () => started.sessionManager.expire(),
-      setForcedSession: started.sessionManager.setForcedSession,
+      setForcedSession: started.setForcedSession,
       getRemoteConfig: started.getRemoteConfig,
       getInitConfiguration: () => strategy.initConfiguration,
     }

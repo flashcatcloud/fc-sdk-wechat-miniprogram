@@ -12,6 +12,11 @@ export interface SessionState {
   created: number
   expireAt: number
   anonymousId?: string
+  /**
+   * Whether the plain draw (or forcing) collected the session. A session kept by `sessionOnError`
+   * is collected too - see {@link isSessionTracked} - but stored as not, so an SDK that predates
+   * the switch reads it as sampled out rather than uploading it in full.
+   */
   isTracked?: boolean
   /** Whether this session consumed the one-shot forced-session marker. */
   isForced?: boolean
@@ -19,6 +24,14 @@ export interface SessionState {
   sessionSampleRate?: number
   /** The remote configuration version applied when this session was created. */
   rcVersion?: number
+  /**
+   * Whether the session lost the `sessionSampleRate` draw and is only kept because of
+   * `sessionOnError`: its events are collected but withheld until it reports an error. Stays true
+   * once released, so what it uploads can still be told apart from a plainly sampled session.
+   */
+  sampledOnError?: boolean
+  /** Whether a `sampledOnError` session has released what it withheld (an error, or forcing). */
+  isReleased?: boolean
 }
 
 export interface SessionStore {
@@ -29,6 +42,8 @@ export interface SessionStore {
 
 export interface SessionConfiguration {
   sessionSampleRate: number
+  /** Omitted by a provider that predates the switch: the initialization value then applies. */
+  sessionOnError?: boolean
   rcVersion: number
   custom?: Record<string, unknown> | null
 }
@@ -45,6 +60,12 @@ export interface SessionManager {
   findTrackedSession: (time?: number) => SessionState | undefined
   renew: () => SessionState
   setForcedSession: () => void
+  /**
+   * Releases the given session if it is still withholding its events. Returns whether it did, so
+   * the caller announces a release only once. The id is required so a late call can never release
+   * a later session.
+   */
+  release: (sessionId: string) => boolean
   expand: () => void
   expire: () => void
 }
@@ -54,12 +75,14 @@ export function startSessionManager(
   {
     trackAnonymousUser = true,
     sessionSampleRate = 100,
+    sessionOnError = false,
     getSessionConfiguration,
     beforeSampling,
     debug = false,
   }: {
     trackAnonymousUser?: boolean
     sessionSampleRate?: number
+    sessionOnError?: boolean
     getSessionConfiguration?: () => SessionConfiguration
     beforeSampling?: BeforeSamplingCallback
     debug?: boolean
@@ -67,6 +90,10 @@ export function startSessionManager(
 ): SessionManager {
   let lastExpand = 0
   let forceNextSession = false
+  // The sessions this process released, applied to every lookup: the history holds copies taken
+  // before the release, and persisting it may have failed. A release must hold for the rest of the
+  // process either way, or the withheld events would be held again.
+  const releasedSessionIds: string[] = []
   const sessionHistory = createValueHistory<SessionState>(() => now(), {
     expireDelay: SESSION_TIME_OUT_DELAY,
     maxEntries: SESSION_HISTORY_MAX_ENTRIES,
@@ -108,7 +135,7 @@ export function startSessionManager(
 
   function createSession(): SessionState {
     const time = now()
-    let currentConfiguration: SessionConfiguration = { sessionSampleRate, rcVersion: 0, custom: null }
+    let currentConfiguration: SessionConfiguration = { sessionSampleRate, sessionOnError, rcVersion: 0, custom: null }
     if (getSessionConfiguration) {
       try {
         currentConfiguration = getSessionConfiguration()
@@ -117,6 +144,7 @@ export function startSessionManager(
       }
     }
     let resolvedSessionSampleRate = currentConfiguration.sessionSampleRate
+    let resolvedSessionOnError = currentConfiguration.sessionOnError ?? sessionOnError
     if (beforeSampling) {
       try {
         const overriddenRate = beforeSampling({
@@ -125,6 +153,11 @@ export function startSessionManager(
         })
         if (isSampleRate(overriddenRate)) {
           resolvedSessionSampleRate = overriddenRate
+          // The callback's contract is that 0 never collects. A visitor it draws to 0 must not be
+          // kept by the on-error switch either, or "never collect" would become "collect on error".
+          if (overriddenRate === 0) {
+            resolvedSessionOnError = false
+          }
         }
       } catch {
         // Host callbacks must never prevent a session from being created.
@@ -133,7 +166,9 @@ export function startSessionManager(
 
     const isForced = forceNextSession
     forceNextSession = false
-    const isTracked = isForced || performDraw(resolvedSessionSampleRate)
+    const isSampled = isForced || performDraw(resolvedSessionSampleRate)
+    // Only for sessions the plain draw missed, so a session is never counted by both rules.
+    const sampledOnError = !isSampled && resolvedSessionOnError === true
     if (debug) {
       try {
         console.log('[FlashCat RUM][Debug] Using sessionSampleRate', resolvedSessionSampleRate)
@@ -146,18 +181,26 @@ export function startSessionManager(
       created: time,
       expireAt: time + SESSION_EXPIRATION_DELAY,
       anonymousId: trackAnonymousUser ? store.get()?.anonymousId || generateUUID() : undefined,
-      isTracked,
+      isTracked: isSampled,
       isForced,
       sessionSampleRate: resolvedSessionSampleRate,
       rcVersion: currentConfiguration.rcVersion,
+      ...(sampledOnError ? { sampledOnError } : {}),
     }
+  }
+
+  function withReleaseMark(state: SessionState): SessionState {
+    if (releasedSessionIds.indexOf(state.id) !== -1) {
+      state.isReleased = true
+    }
+    return state
   }
 
   function findSession(time?: number): SessionState | undefined {
     if (time !== undefined) {
       const historicalSession = sessionHistory.find(time)?.value
       if (historicalSession && !isExpiredAt(historicalSession, time)) {
-        return historicalSession
+        return withReleaseMark(historicalSession)
       }
       return undefined
     }
@@ -165,14 +208,14 @@ export function startSessionManager(
     if (!state || isExpiredAt(state, now())) {
       return undefined
     }
-    return state
+    return withReleaseMark(state)
   }
 
   return {
     findSession,
     findTrackedSession: (time) => {
       const state = findSession(time)
-      if (!state || state.isTracked === false) {
+      if (!state || !isSessionTracked(state)) {
         return undefined
       }
       return state
@@ -186,6 +229,23 @@ export function startSessionManager(
     },
     setForcedSession: () => {
       forceNextSession = true
+    },
+    release: (sessionId) => {
+      const state = findSession()
+      if (!state || state.id !== sessionId || !isWithholdingEvents(state)) {
+        return false
+      }
+      releasedSessionIds.push(sessionId)
+      if (releasedSessionIds.length > SESSION_HISTORY_MAX_ENTRIES) {
+        releasedSessionIds.shift()
+      }
+      state.isReleased = true
+      try {
+        store.set(state)
+      } catch {
+        // The in-memory mark above keeps the release for the rest of this process.
+      }
+      return true
     },
     expand: () => {
       const t = now()
@@ -205,6 +265,16 @@ export function startSessionManager(
       sessionHistory.closeActive(now())
     },
   }
+}
+
+/** Whether the session collects events at all: drawn, forced, or kept until it reports an error. */
+export function isSessionTracked(state: SessionState): boolean {
+  return state.isTracked !== false || state.sampledOnError === true
+}
+
+/** Whether the session collects events but must not upload them until it reports an error. */
+export function isWithholdingEvents(state: SessionState): boolean {
+  return state.sampledOnError === true && state.isReleased !== true
 }
 
 function cloneSessionState(state: SessionState): SessionState {

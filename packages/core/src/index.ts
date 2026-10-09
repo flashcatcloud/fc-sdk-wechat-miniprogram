@@ -20,7 +20,7 @@ export type {
   SessionState,
   SessionStore,
 } from './domain/session/sessionManager'
-export { startSessionManager } from './domain/session/sessionManager'
+export { isSessionTracked, isWithholdingEvents, startSessionManager } from './domain/session/sessionManager'
 export type { InitConfiguration, Configuration } from './domain/configuration/configuration'
 export { validateAndBuildConfiguration } from './domain/configuration/configuration'
 export type { EndpointBuilder, ProxyFn } from './domain/configuration/endpointBuilder'

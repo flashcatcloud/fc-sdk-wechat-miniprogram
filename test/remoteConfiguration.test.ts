@@ -82,12 +82,12 @@ test('remote configuration requires schema v1 and only consumes sessionSampleRat
         rum: { sessionSampleRate: 22, traceSampleRate: 0, privacyLevel: 'mask' },
         custom: { anything: true },
       },
-      expected: { sessionSampleRate: 22, rcVersion: 3, custom: { anything: true } },
+      expected: { sessionSampleRate: 22, sessionOnError: false, rcVersion: 3, custom: { anything: true } },
     },
     {
       name: 'missing sampling field',
       data: { schema_version: 1, version: 4, enabled: true, rum: { traceSampleRate: 0 } },
-      expected: { sessionSampleRate: 73, rcVersion: 4, custom: null },
+      expected: { sessionSampleRate: 73, sessionOnError: false, rcVersion: 4, custom: null },
     },
   ]
 
@@ -129,7 +129,7 @@ test('remote configuration logs fetched and applied values when debug is enabled
         '[FlashCat RUM][Debug] Remote configuration fetched',
         {
           response: data,
-          applied: { sessionSampleRate: 35, rcVersion: 6, custom: null },
+          applied: { sessionSampleRate: 35, sessionOnError: false, rcVersion: 6, custom: null },
           etag: '"config-6"',
         },
       ],
@@ -184,7 +184,7 @@ test('remote configuration rejects incompatible or malformed snapshots as a whol
       setTimeout: () => 1,
     })
     controller.fetch()
-    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
     controller.stop()
   }
 })
@@ -206,6 +206,7 @@ test('a malformed newer response preserves the last accepted snapshot', () => {
 
   assert.deepEqual(controller.getSessionConfiguration(), {
     sessionSampleRate: 25,
+    sessionOnError: false,
     rcVersion: 5,
     custom: { tier: 'gold' },
   })
@@ -218,7 +219,7 @@ test('enabled false clears cache and falls back to the initialization rate', () 
   const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: response }), storage)
   const controller = createRemoteConfigurationController(adapter, configuration())
   controller.fetch()
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 12, rcVersion: 7, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 12, sessionOnError: false, rcVersion: 7, custom: null })
   assert.equal(storage.size, 2)
 
   response = { schema_version: 1, version: 8, enabled: false, rum: { sessionSampleRate: 0 } }
@@ -226,7 +227,7 @@ test('enabled false clears cache and falls back to the initialization rate', () 
   // Every knob goes back to the initialization value, but the version that switched it off is
   // kept: it is what the next request echoes as applied_version, and without it the console cannot
   // tell a client that took the kill switch from one that never heard about it.
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 8, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 8, custom: null })
   // And it is written, not merely held: a miniprogram process is reclaimed readily, and a version
   // that lived only in memory would be gone on the next launch — leaving the console unable to tell
   // this client from one that never heard about the change.
@@ -257,10 +258,10 @@ test('cache is loaded synchronously with ETag and 304 preserves the snapshot', (
 
   const secondAdapter = createAdapter((options) => options.success?.({ statusCode: 304 }), storage)
   const second = createRemoteConfigurationController(secondAdapter, configuration())
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, rcVersion: 9, custom: null })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, sessionOnError: false, rcVersion: 9, custom: null })
   second.fetch(9)
   assert.equal(secondAdapter.requests[0].header?.['If-None-Match'], '"config-9"')
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, rcVersion: 9, custom: null })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 31, sessionOnError: false, rcVersion: 9, custom: null })
   second.stop()
 })
 
@@ -286,7 +287,7 @@ test('cache dimensions isolate endpoint, application, env and app version', () =
   ]
   for (const variant of variants) {
     const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration(variant))
-    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
     controller.stop()
   }
 })
@@ -324,9 +325,9 @@ test('cache cleanup removes the previous app version and ignores dynamic functio
   const second = createRemoteConfigurationController(secondAdapter, configuration({ proxy, version: '2.0.0' }))
 
   assert.equal(storage.has(firstCacheKey), false)
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
   second.fetch()
-  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 30, rcVersion: 6, custom: null })
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 30, sessionOnError: false, rcVersion: 6, custom: null })
   assert.equal([...storage.keys()].filter((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX)).length, 1)
   second.stop()
 })
@@ -349,7 +350,7 @@ test('corrupt or incompatible cache is removed and storage failures are isolated
   storage.set(cacheKey, '{not json')
 
   const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
   assert.equal(storage.has(cacheKey), false)
   controller.stop()
 
@@ -370,7 +371,7 @@ test('corrupt or incompatible cache is removed and storage failures are isolated
   }
   const storageFailure = createRemoteConfigurationController(throwingAdapter, configuration())
   assert.doesNotThrow(() => storageFailure.fetch())
-  assert.deepEqual(storageFailure.getSessionConfiguration(), { sessionSampleRate: 19, rcVersion: 2, custom: null })
+  assert.deepEqual(storageFailure.getSessionConfiguration(), { sessionSampleRate: 19, sessionOnError: false, rcVersion: 2, custom: null })
   storageFailure.stop()
 })
 
@@ -381,7 +382,7 @@ test('disabled remote configuration performs no cache access and no request', ()
 
   assert.equal(adapter.storageReads, 0)
   assert.equal(adapter.requests.length, 0)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
   assert.equal(controller.getRemoteConfig(), undefined)
 })
 
@@ -414,6 +415,7 @@ test('custom survives a cold start through the cache and 304 keeps the cached va
   second.fetch(20)
   assert.deepEqual(second.getSessionConfiguration(), {
     sessionSampleRate: 44,
+    sessionOnError: false,
     rcVersion: 20,
     custom: { supportUsers: ['u-1'], featureFlags: { newCart: true } },
   })
@@ -436,7 +438,7 @@ test('a 200 response without custom clears the previously applied custom', () =>
   response = { schema_version: 1, version: 22, enabled: true, rum: { sessionSampleRate: 40 } }
   controller.fetch(21)
   assert.equal(controller.getRemoteConfig(), undefined)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 40, rcVersion: 22, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 40, sessionOnError: false, rcVersion: 22, custom: null })
   controller.stop()
 })
 
@@ -457,7 +459,7 @@ test('the kill switch clears custom while persisting its version', () => {
   response = { schema_version: 1, version: 24, enabled: false }
   controller.fetch(23)
   assert.equal(controller.getRemoteConfig(), undefined)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 24, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 24, custom: null })
   controller.stop()
 })
 
@@ -481,7 +483,7 @@ test('a schema this build cannot read is a settled answer, not something to retr
 
   assert.equal(requests, 1)
   assert.equal(timers.length, 0, 'a refusal this definite must not be retried')
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
   controller.stop()
 })
 
@@ -520,7 +522,7 @@ test('a non-object custom is ignored without affecting session sampling', () => 
     const controller = createRemoteConfigurationController(adapter, configuration())
     controller.fetch()
     assert.equal(controller.getRemoteConfig(), undefined, `custom ${JSON.stringify(custom)}`)
-    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 41, rcVersion: 25, custom: null })
+    assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 41, sessionOnError: false, rcVersion: 25, custom: null })
     controller.stop()
   }
 })
@@ -556,13 +558,14 @@ test('custom accessors return defensive copies that cannot mutate internal state
   controller.stop()
 })
 
-test('a cache written before custom existed stays usable while getRemoteConfig returns undefined', () => {
+test('a record written by another SDK version keeps its values but not its ETag', () => {
   const storage = new Map<string, unknown>()
   const seedAdapter = createAdapter(
     (options) =>
       options.success?.({
         statusCode: 200,
-        data: { schema_version: 1, version: 27, enabled: true, rum: { sessionSampleRate: 33 } },
+        data: { schema_version: 1, version: 27, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+        header: { ETag: '"config-27"' },
       }),
     storage,
   )
@@ -570,22 +573,53 @@ test('a cache written before custom existed stays usable while getRemoteConfig r
   seed.fetch()
   seed.stop()
 
-  // Rewrite the v2 cache as if custom had not been added yet.
+  // Rewrite the record as an SDK that did not know the switch would have written it: the same
+  // response, the same ETag, and no sessionOnError.
   const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
   storage.set(
     cacheKey,
-    JSON.stringify({
-      formatVersion: 2,
-      sessionSampleRate: 33,
-      rcVersion: 27,
-      etag: '"config-27"',
-    }),
+    JSON.stringify({ formatVersion: 2, sdkVersion: '0.0.1', sessionSampleRate: 0, rcVersion: 27, etag: '"config-27"' }),
   )
 
-  const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 33, rcVersion: 27, custom: null })
-  assert.equal(controller.getRemoteConfig(), undefined)
+  const adapter = createAdapter(
+    (options) =>
+      options.success?.({
+        statusCode: 200,
+        data: { schema_version: 1, version: 27, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+        header: { ETag: '"config-27"' },
+      }),
+    storage,
+  )
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  // The emergency stop it recorded still applies to the first draw, before any response.
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 0, sessionOnError: false, rcVersion: 27, custom: null })
+  controller.fetch(27)
+  assert.equal(adapter.requests[0].header?.['If-None-Match'], undefined, 'a 304 could not fill in what that version did not know')
+  assert.equal(controller.getSessionConfiguration().sessionOnError, true)
+  assert.ok(JSON.parse(storage.get(cacheKey) as string).etag, 'this version now owns the record')
   controller.stop()
+})
+
+test('a record of another SDK version is still rejected when its shape is malformed', () => {
+  const storage = new Map<string, unknown>()
+  const seed = createRemoteConfigurationController(
+    createAdapter((options) => options.success?.({ statusCode: 200, data: { schema_version: 1, version: 3, enabled: true, rum: { sessionSampleRate: 0 } } }), storage),
+    configuration(),
+  )
+  seed.fetch()
+  seed.stop()
+  const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
+  for (const record of [
+    { formatVersion: 1, sdkVersion: '0.0.1', sessionSampleRate: 0, rcVersion: 3 },
+    { formatVersion: 2, sdkVersion: '0.0.1', sessionSampleRate: 'zero', rcVersion: 3 },
+    { formatVersion: 2, sdkVersion: 7, sessionSampleRate: 0, rcVersion: 3 },
+  ]) {
+    storage.set(cacheKey, JSON.stringify(record))
+    const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
+    assert.equal(controller.getSessionConfiguration().sessionSampleRate, 73, JSON.stringify(record))
+    assert.equal(storage.has(cacheKey), false, 'a record this version cannot read is cleared')
+    controller.stop()
+  }
 })
 
 test('v2 cache stores only remote overrides so a new initialization rate is not frozen', () => {
@@ -603,7 +637,7 @@ test('v2 cache stores only remote overrides so a new initialization rate is not 
 
   response = { schema_version: 1, version: 31, enabled: true, rum: {} }
   controller.fetch(30)
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 31, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 31, custom: null })
   controller.stop()
 
   const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
@@ -614,7 +648,7 @@ test('v2 cache stores only remote overrides so a new initialization rate is not 
     createAdapter(undefined, storage),
     configuration({ sessionSampleRate: 91 }),
   )
-  assert.deepEqual(relaunched.getSessionConfiguration(), { sessionSampleRate: 91, rcVersion: 31, custom: null })
+  assert.deepEqual(relaunched.getSessionConfiguration(), { sessionSampleRate: 91, sessionOnError: false, rcVersion: 31, custom: null })
   relaunched.stop()
 })
 
@@ -632,19 +666,19 @@ test('legacy v1 cache is ignored and removed instead of freezing its effective r
     legacyCacheKey,
     JSON.stringify({
       formatVersion: 1,
-      snapshot: { sessionSampleRate: 12, rcVersion: 8, custom: null },
+      snapshot: { sessionSampleRate: 12, sessionOnError: false, rcVersion: 8, custom: null },
       etag: '"legacy"',
     }),
   )
 
   const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
   assert.equal(storage.has(legacyCacheKey), false)
   assert.equal(storage.has(legacyIndexKey), false)
   controller.stop()
 })
 
-test('only changes crossing zero notify the session lifecycle', () => {
+test('only rate changes crossing zero notify the session lifecycle', () => {
   const responses = [
     { schema_version: 1, version: 1, enabled: true, rum: { sessionSampleRate: 20 } },
     { schema_version: 1, version: 2, enabled: true, rum: { sessionSampleRate: 0 } },
@@ -656,7 +690,9 @@ test('only changes crossing zero notify the session lifecycle', () => {
   })
   const controller = createRemoteConfigurationController(adapter, configuration())
   const changes: Array<[number, number]> = []
-  controller.setSessionSampleRateChangeHandler((previous, next) => changes.push([previous, next]))
+  controller.setSamplingChangeHandler((previous, next) =>
+    changes.push([previous.sessionSampleRate, next.sessionSampleRate]),
+  )
 
   controller.fetch()
   controller.fetch(1)
@@ -680,7 +716,9 @@ test('a kill switch or removed override also notifies when its effective fallbac
   const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: responses.shift() }))
   const controller = createRemoteConfigurationController(adapter, configuration())
   const changes: Array<[number, number]> = []
-  controller.setSessionSampleRateChangeHandler((previous, next) => changes.push([previous, next]))
+  controller.setSamplingChangeHandler((previous, next) =>
+    changes.push([previous.sessionSampleRate, next.sessionSampleRate]),
+  )
 
   for (let version = 0; version < 4; version += 1) {
     controller.fetch(version)
@@ -711,7 +749,7 @@ test('an applied version raises the floor and a stale response cannot overwrite 
     data: { schema_version: 1, version: 8, enabled: true, rum: { sessionSampleRate: 0 } },
     header: { ETag: '"stale"' },
   })
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
 
   controller.fetch(9)
   assert.equal(requests.length, 2)
@@ -721,7 +759,7 @@ test('an applied version raises the floor and a stale response cannot overwrite 
     data: { schema_version: 1, version: 9, enabled: true, rum: { sessionSampleRate: 25 } },
     header: { ETag: '"current"' },
   })
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 25, rcVersion: 9, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 25, sessionOnError: false, rcVersion: 9, custom: null })
   controller.stop()
 })
 
@@ -876,7 +914,7 @@ test('stop ignores a late response from the active request', () => {
     data: { schema_version: 1, version: 50, enabled: true, rum: { sessionSampleRate: 0 } },
   })
 
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
 })
 
 test('401, 403 and other 4xx do not retry while malformed callbacks schedule once', () => {
@@ -902,5 +940,80 @@ test('401, 403 and other 4xx do not retry while malformed callbacks schedule onc
   })
   assert.doesNotThrow(() => controller.fetch())
   assert.deepEqual(scheduled, [5_000])
+  controller.stop()
+})
+
+test('the on-error switch is delivered as a boolean, kept across a cold start and cleared by the kill switch', () => {
+  const storage = new Map<string, unknown>()
+  const responses: unknown[] = [
+    { schema_version: 1, version: 1, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+    { schema_version: 1, version: 2, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: 'true' } },
+    { schema_version: 1, version: 3, enabled: false, rum: { sessionOnError: true } },
+  ]
+  const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: responses.shift() }), storage)
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  assert.equal(controller.getSessionConfiguration().sessionOnError, false, 'the initialization value until delivered')
+
+  controller.fetch()
+  assert.deepEqual(controller.getSessionConfiguration(), {
+    sessionSampleRate: 0,
+    sessionOnError: true,
+    rcVersion: 1,
+    custom: null,
+  })
+  const relaunched = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
+  assert.equal(relaunched.getSessionConfiguration().sessionOnError, true, 'read back from the cache')
+  relaunched.stop()
+
+  controller.fetch(1)
+  assert.equal(
+    controller.getSessionConfiguration().sessionOnError,
+    false,
+    'anything but a boolean reads as not delivered, not as either position',
+  )
+  assert.equal(controller.getSessionConfiguration().sessionSampleRate, 0, 'and does not reject the response')
+
+  controller.fetch(2)
+  assert.deepEqual(controller.getSessionConfiguration(), {
+    sessionSampleRate: 73,
+    sessionOnError: false,
+    rcVersion: 3,
+    custom: null,
+  })
+  controller.stop()
+})
+
+test('the delivered switch overrides the initialization value in both directions', () => {
+  const adapter = createAdapter((options) =>
+    options.success?.({ statusCode: 200, data: { schema_version: 1, version: 1, enabled: true, rum: { sessionOnError: false } } }),
+  )
+  const controller = createRemoteConfigurationController(adapter, configuration({ sessionOnError: true }))
+  assert.equal(controller.getSessionConfiguration().sessionOnError, true)
+  controller.fetch()
+  assert.equal(controller.getSessionConfiguration().sessionOnError, false)
+  controller.stop()
+})
+
+test('a switch change notifies the session lifecycle even when the rate does not cross zero', () => {
+  const responses = [
+    { schema_version: 1, version: 1, enabled: true, rum: { sessionSampleRate: 0 } },
+    { schema_version: 1, version: 2, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+    { schema_version: 1, version: 3, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: true } },
+    { schema_version: 1, version: 4, enabled: true, rum: { sessionSampleRate: 0, sessionOnError: false } },
+  ]
+  const adapter = createAdapter((options) => options.success?.({ statusCode: 200, data: responses.shift() }))
+  const controller = createRemoteConfigurationController(adapter, configuration())
+  const changes: Array<[boolean, boolean]> = []
+  controller.setSamplingChangeHandler((previous, next) => changes.push([previous.sessionOnError, next.sessionOnError]))
+
+  for (let version = 0; version < 4; version += 1) {
+    controller.fetch(version)
+  }
+
+  assert.deepEqual(changes, [
+    [false, false],
+    [false, true],
+    [true, false],
+  ])
   controller.stop()
 })
