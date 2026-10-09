@@ -645,3 +645,21 @@ test('a console that throws does not cost the release its history', (t) => {
     ['view', 'error', 'custom'],
   )
 })
+
+test('an SDK upgrade draws its first session from the cached emergency stop, before any response', async (t) => {
+  const storage = new Map<string, unknown>()
+  const before = startHarness(t, { sessionSampleRate: 100, remoteConfigurationEnabled: true }, storage)
+  await deliver(before, { sessionSampleRate: 0 }, 9)
+  before.started.stop()
+  before.started.sessionManager.expire()
+  // The record as the previous SDK version left it.
+  const cacheKey = [...storage.keys()].find((key) => String(key).startsWith('_fc_rum_remote_config_v2_'))!
+  const record = JSON.parse(storage.get(cacheKey) as string)
+  storage.set(cacheKey, JSON.stringify({ ...record, sdkVersion: '0.0.1', etag: '"stop"' }))
+
+  const after = startHarness(t, { sessionSampleRate: 100, remoteConfigurationEnabled: true }, storage)
+  assert.equal(after.started.sessionManager.findSession()!.sessionSampleRate, 0, 'the stop survives the upgrade')
+  assert.equal(after.started.sessionManager.findSession()!.isTracked, false)
+  await Promise.resolve()
+  assert.equal(after.configRequests[0].header?.['If-None-Match'], undefined, 'the first request after an upgrade is unconditional')
+})

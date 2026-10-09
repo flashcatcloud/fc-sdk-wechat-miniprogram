@@ -31,10 +31,11 @@ interface CachedRemoteConfiguration extends RemoteConfigurationState {
   formatVersion: 2
   /**
    * The SDK that wrote the record. Another version may have read the same response differently -
-   * a knob it did not know is missing from its record, and its ETag would then keep that knob
-   * missing through every 304 - so a record from another version is not reused.
+   * a knob it did not know is missing from its record - so its ETag is not reused: a 304 could not
+   * fill the knob in. Its values are, so a draw made before the response, or offline, still
+   * follows what the console last delivered. Absent from records written before this field.
    */
-  sdkVersion: string
+  sdkVersion?: string
   etag?: string
 }
 
@@ -180,7 +181,7 @@ export function createRemoteConfigurationController(
         return
       }
       currentState = normalizeRemoteState(parsed)
-      etag = parsed.etag
+      etag = parsed.sdkVersion === SDK_VERSION ? parsed.etag : undefined
       hasRemoteConfiguration = true
       highestKnownVersion = currentState.rcVersion
     } catch {
@@ -478,10 +479,11 @@ function parseResponse(data: unknown): ParsedResponse | undefined {
 }
 
 function isCachedRemoteConfiguration(value: unknown): value is CachedRemoteConfiguration {
-  if (!isRecord(value) || value.formatVersion !== CACHE_FORMAT_VERSION || value.sdkVersion !== SDK_VERSION) {
+  if (!isRecord(value) || value.formatVersion !== CACHE_FORMAT_VERSION) {
     return false
   }
   return (
+    (value.sdkVersion === undefined || typeof value.sdkVersion === 'string') &&
     (value.sessionSampleRate === undefined || isSampleRate(value.sessionSampleRate)) &&
     (value.sessionOnError === undefined || typeof value.sessionOnError === 'boolean') &&
     isRemoteVersion(value.rcVersion) &&

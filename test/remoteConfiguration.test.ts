@@ -558,7 +558,7 @@ test('custom accessors return defensive copies that cannot mutate internal state
   controller.stop()
 })
 
-test('a cache written by another SDK version is not reused: the next fetch carries no ETag', () => {
+test('a record written by another SDK version keeps its values but not its ETag', () => {
   const storage = new Map<string, unknown>()
   const seedAdapter = createAdapter(
     (options) =>
@@ -573,7 +573,7 @@ test('a cache written by another SDK version is not reused: the next fetch carri
   seed.fetch()
   seed.stop()
 
-  // Rewrite the cache as an SDK that did not know the switch would have written it: the same
+  // Rewrite the record as an SDK that did not know the switch would have written it: the same
   // response, the same ETag, and no sessionOnError.
   const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
   storage.set(
@@ -591,12 +591,35 @@ test('a cache written by another SDK version is not reused: the next fetch carri
     storage,
   )
   const controller = createRemoteConfigurationController(adapter, configuration())
-  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, sessionOnError: false, rcVersion: 0, custom: null })
-  assert.equal(storage.has(cacheKey), false, 'the record of another version is removed')
-  controller.fetch()
-  assert.equal(adapter.requests[0].header?.['If-None-Match'], undefined, 'nothing to revalidate against')
+  // The emergency stop it recorded still applies to the first draw, before any response.
+  assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 0, sessionOnError: false, rcVersion: 27, custom: null })
+  controller.fetch(27)
+  assert.equal(adapter.requests[0].header?.['If-None-Match'], undefined, 'a 304 could not fill in what that version did not know')
   assert.equal(controller.getSessionConfiguration().sessionOnError, true)
+  assert.ok(JSON.parse(storage.get(cacheKey) as string).etag, 'this version now owns the record')
   controller.stop()
+})
+
+test('a record of another SDK version is still rejected when its shape is malformed', () => {
+  const storage = new Map<string, unknown>()
+  const seed = createRemoteConfigurationController(
+    createAdapter((options) => options.success?.({ statusCode: 200, data: { schema_version: 1, version: 3, enabled: true, rum: { sessionSampleRate: 0 } } }), storage),
+    configuration(),
+  )
+  seed.fetch()
+  seed.stop()
+  const cacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
+  for (const record of [
+    { formatVersion: 1, sdkVersion: '0.0.1', sessionSampleRate: 0, rcVersion: 3 },
+    { formatVersion: 2, sdkVersion: '0.0.1', sessionSampleRate: 'zero', rcVersion: 3 },
+    { formatVersion: 2, sdkVersion: 7, sessionSampleRate: 0, rcVersion: 3 },
+  ]) {
+    storage.set(cacheKey, JSON.stringify(record))
+    const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration())
+    assert.equal(controller.getSessionConfiguration().sessionSampleRate, 73, JSON.stringify(record))
+    assert.equal(storage.has(cacheKey), false, 'a record this version cannot read is cleared')
+    controller.stop()
+  }
 })
 
 test('v2 cache stores only remote overrides so a new initialization rate is not frozen', () => {
