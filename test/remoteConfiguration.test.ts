@@ -264,7 +264,7 @@ test('cache is loaded synchronously with ETag and 304 preserves the snapshot', (
   second.stop()
 })
 
-test('cache dimensions isolate endpoint, application, env and app version', () => {
+test('cache dimensions isolate endpoint, application and env', () => {
   const storage = new Map<string, unknown>()
   const sourceAdapter = createAdapter(
     (options) =>
@@ -278,12 +278,7 @@ test('cache dimensions isolate endpoint, application, env and app version', () =
   source.fetch()
   source.stop()
 
-  const variants = [
-    { site: 'other.flashcat.cloud' },
-    { applicationId: 'other-app' },
-    { env: 'staging' },
-    { version: '2.0.0' },
-  ]
+  const variants = [{ site: 'other.flashcat.cloud' }, { applicationId: 'other-app' }, { env: 'staging' }]
   for (const variant of variants) {
     const controller = createRemoteConfigurationController(createAdapter(undefined, storage), configuration(variant))
     assert.deepEqual(controller.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
@@ -291,43 +286,83 @@ test('cache dimensions isolate endpoint, application, env and app version', () =
   }
 })
 
-test('cache cleanup removes the previous app version and ignores dynamic function proxy parameters', () => {
+test('cache survives an app version change and is not deleted by it', () => {
+  const storage = new Map<string, unknown>()
+  const first = createRemoteConfigurationController(
+    createAdapter(
+      (options) =>
+        options.success?.({
+          statusCode: 200,
+          data: { schema_version: 1, version: 5, enabled: true, rum: { sessionSampleRate: 25 } },
+        }),
+      storage,
+    ),
+    configuration({ version: '1.2.3' }),
+  )
+  first.fetch()
+  first.stop()
+  const keysBefore = [...storage.keys()].sort()
+
+  const second = createRemoteConfigurationController(
+    createAdapter(undefined, storage),
+    configuration({ version: '2.0.0' }),
+  )
+  assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 25, rcVersion: 5, custom: null })
+  assert.deepEqual([...storage.keys()].sort(), keysBefore)
+  second.stop()
+})
+
+test('cache cleanup removes an entry stored under the previous version-scoped key and ignores dynamic proxy parameters', () => {
   const storage = new Map<string, unknown>()
   let proxyCall = 0
   const proxy = ({ path, parameters }: { path: string; parameters: string }) => {
     proxyCall += 1
     return `https://proxy.example.com${path}?signature=${proxyCall}&${parameters}#runtime`
   }
-  const firstAdapter = createAdapter(
-    (options) =>
-      options.success?.({
-        statusCode: 200,
-        data: { schema_version: 1, version: 5, enabled: true, rum: { sessionSampleRate: 25 } },
-      }),
-    storage,
+  const first = createRemoteConfigurationController(
+    createAdapter(
+      (options) =>
+        options.success?.({
+          statusCode: 200,
+          data: { schema_version: 1, version: 5, enabled: true, rum: { sessionSampleRate: 25 } },
+        }),
+      storage,
+    ),
+    configuration({ proxy }),
   )
-  const first = createRemoteConfigurationController(firstAdapter, configuration({ proxy }))
   first.fetch()
   first.stop()
 
-  const firstCacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))
-  assert.ok(firstCacheKey)
+  const currentCacheKey = [...storage.keys()].find((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX))!
+  assert.ok(currentCacheKey)
+  const indexKey = [...storage.keys()].find((key) => storage.get(key) === currentCacheKey)!
+  assert.ok(indexKey)
+  // Simulate an entry written by an earlier build, whose key was derived from the version too.
+  const staleKey = `${REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX}stale`
+  storage.set(staleKey, storage.get(currentCacheKey))
+  storage.delete(currentCacheKey)
+  storage.set(indexKey, staleKey)
 
-  const secondAdapter = createAdapter(
-    (options) =>
-      options.success?.({
-        statusCode: 200,
-        data: { schema_version: 1, version: 6, enabled: true, rum: { sessionSampleRate: 30 } },
-      }),
-    storage,
+  const second = createRemoteConfigurationController(
+    createAdapter(
+      (options) =>
+        options.success?.({
+          statusCode: 200,
+          data: { schema_version: 1, version: 6, enabled: true, rum: { sessionSampleRate: 30 } },
+        }),
+      storage,
+    ),
+    configuration({ proxy, version: '2.0.0' }),
   )
-  const second = createRemoteConfigurationController(secondAdapter, configuration({ proxy, version: '2.0.0' }))
 
-  assert.equal(storage.has(firstCacheKey), false)
+  assert.equal(storage.has(staleKey), false)
   assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 73, rcVersion: 0, custom: null })
   second.fetch()
   assert.deepEqual(second.getSessionConfiguration(), { sessionSampleRate: 30, rcVersion: 6, custom: null })
-  assert.equal([...storage.keys()].filter((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX)).length, 1)
+  assert.deepEqual(
+    [...storage.keys()].filter((key) => key.startsWith(REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX)),
+    [currentCacheKey],
+  )
   second.stop()
 })
 
