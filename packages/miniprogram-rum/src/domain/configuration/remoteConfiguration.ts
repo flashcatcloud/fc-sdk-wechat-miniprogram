@@ -553,13 +553,14 @@ function buildParameters(configuration: RumConfiguration, appliedVersion?: numbe
   return parameters.join('&')
 }
 
+// The application version is deliberately not part of the key. A device runs one release of the
+// miniprogram at a time, and the console does not target settings per version, so keying by
+// version would only make the first session after every release start from the initialization
+// values. The previous release's stored settings are the better answer until the fresh fetch lands.
+// Entries written by earlier SDK builds used a key that included the version; the index entry
+// (which never did) points at it, so registerCacheKey() removes it on the first launch.
 function buildCacheKey(endpointIdentity: string, configuration: RumConfiguration): string {
-  const dimensions = JSON.stringify([
-    endpointIdentity,
-    configuration.applicationId,
-    configuration.env || '',
-    configuration.version || '',
-  ])
+  const dimensions = JSON.stringify([endpointIdentity, configuration.applicationId, configuration.env || ''])
   return `${REMOTE_CONFIGURATION_STORAGE_KEY_PREFIX}${hash(dimensions)}`
 }
 
