@@ -465,3 +465,58 @@ test('requestObservable stop restores original wx.request', () => {
     ;(globalThis as any).wx = originalWx
   }
 })
+
+function createFailingAdapter(): PlatformAdapter {
+  const adapter = createStandaloneAdapter()
+  const fail = (options: { fail?: (error: { errMsg: string }) => void; complete?: () => void }) => {
+    options.fail?.({ errMsg: 'request:fail timeout' })
+    options.complete?.()
+    return { abort: () => undefined }
+  }
+  adapter.request = fail
+  adapter.uploadFile = fail
+  adapter.downloadFile = fail
+  return adapter
+}
+
+test('requestObservable reports statusCode 0 when a request fails without a response', () => {
+  const adapter = createFailingAdapter()
+  const { observable, stop } = initRequestObservable(adapter)
+  const completed: any[] = []
+  observable.subscribe((event) => completed.push(event))
+
+  adapter.request({ url: 'https://api.example.com/data' })
+  adapter.uploadFile({ url: 'https://api.example.com/upload', filePath: '/tmp/file', name: 'file' })
+  adapter.downloadFile({ url: 'https://api.example.com/file' })
+
+  stop()
+  assert.deepEqual(
+    completed.map((event) => [event.requestType, event.statusCode, event.errorMessage]),
+    [
+      ['xhr', 0, 'request:fail timeout'],
+      ['upload', 0, 'request:fail timeout'],
+      ['download', 0, 'request:fail timeout'],
+    ],
+  )
+})
+
+test('requestObservable keeps the real statusCode when a response is received', () => {
+  const adapter = createStandaloneAdapter()
+  const { observable, stop } = initRequestObservable(adapter)
+  const completed: any[] = []
+  observable.subscribe((event) => completed.push(event))
+
+  adapter.request({ url: 'https://api.example.com/data' })
+  adapter.uploadFile({ url: 'https://api.example.com/upload', filePath: '/tmp/file', name: 'file' })
+  adapter.downloadFile({ url: 'https://api.example.com/file' })
+
+  stop()
+  assert.deepEqual(
+    completed.map((event) => [event.requestType, event.statusCode]),
+    [
+      ['xhr', 201],
+      ['upload', 201],
+      ['download', 201],
+    ],
+  )
+})
