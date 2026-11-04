@@ -43,9 +43,13 @@ export function startPageCollection(
     emitViewUpdate(page)
   })
 
+  // A page gets its update timer the moment it becomes current. Emitting its first
+  // update can renew the session, and a renewal replaces the current page; scheduling
+  // after that emit would attach the timer to a page that is no longer current.
   function setCurrentPage(page: PageHistoryEntry) {
     currentPage = page
     pageHistory.add(page, page.startTime)
+    page.updateIntervalId = schedulePageUpdate(page)
   }
 
   function buildPageEventData(
@@ -242,9 +246,9 @@ export function startPageCollection(
       is_active: true,
     })
     page.documentVersion = (page.documentVersion || 0) + 1
-    emitViewUpdate(page)
     resumeForeground(page, time)
     page.updateIntervalId = schedulePageUpdate(page)
+    emitViewUpdate(page)
   }
 
   const performanceSubscription = lifeCycle.subscribe(
@@ -321,7 +325,6 @@ export function startPageCollection(
       return
     }
     emitViewUpdate(renewedPage)
-    renewedPage.updateIntervalId = schedulePageUpdate(renewedPage)
   })
 
   const pageSubscription = pageObservable.subscribe((event) => {
@@ -345,7 +348,6 @@ export function startPageCollection(
 
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       emitViewUpdate(loadPage)
-      loadPage.updateIntervalId = schedulePageUpdate(loadPage)
       return
     }
 
@@ -391,7 +393,6 @@ export function startPageCollection(
 
       lifeCycle.notify(LifeCycleEventType.PAGE_EVENT, event)
       emitViewUpdate(showPage)
-      showPage.updateIntervalId = schedulePageUpdate(showPage)
       return
     }
 
@@ -462,7 +463,6 @@ export function startPageCollection(
         emitPageHidden(previousPage, startTime, 'terminated')
       }
       emitViewUpdate(manualPage)
-      manualPage.updateIntervalId = schedulePageUpdate(manualPage)
     },
   }
 }
