@@ -131,6 +131,45 @@ test('startRum does not emit RUM events when session is sampled out', () => {
   }
 })
 
+test('an event reported from beforeSampling does not draw another session', () => {
+  let started: ReturnType<typeof startRum> | undefined
+  let hookCalls = 0
+  const configuration = validateAndBuildRumConfiguration({
+    clientToken: 'token',
+    applicationId: 'app',
+    sessionSampleRate: 100,
+    beforeSampling: () => {
+      hookCalls++
+      // Undefined during the draw startRum makes itself, before it returns.
+      started?.addCustomEvent('from-before-sampling')
+      return undefined
+    },
+    trackPages: false,
+    trackActions: false,
+    trackPerformance: false,
+    flushInterval: 100000,
+  })!
+  started = startRum(configuration, createAdapter())
+  const collected: any[] = []
+  let renewals = 0
+  started.lifeCycle.subscribe(LifeCycleEventType.RUM_EVENT_COLLECTED, (event) => collected.push(event))
+  started.lifeCycle.subscribe(LifeCycleEventType.SESSION_RENEWED, () => renewals++)
+  try {
+    started.sessionManager.expire()
+    hookCalls = 0
+
+    started.addCustomEvent('triggers-a-draw')
+
+    assert.equal(hookCalls, 1, 'one draw, one call')
+    assert.equal(renewals, 1, 'one new session')
+    const names = JSON.stringify(collected)
+    assert.ok(names.includes('triggers-a-draw'), 'the event that caused the draw is kept')
+    assert.ok(!names.includes('from-before-sampling'), 'the event reported during the draw is dropped')
+  } finally {
+    started.stop()
+  }
+})
+
 test('startRum reports traced resource events with backend-compatible _dd identifiers', () => {
   const adapter = createAdapter()
   let capturedRequestOptions: RequestOptions | undefined

@@ -113,7 +113,16 @@ export function startRumAssembly({
     return limiter
   }
 
+  // Renewing runs the application's `beforeSampling` synchronously, before the new session is
+  // stored. An event the callback reports would find no session and renew again, calling the
+  // callback again, until the stack overflows — minting one session per level. Events reported
+  // while a session is being drawn are dropped instead.
+  let renewing = false
+
   const subscription = lifeCycle.subscribe(LifeCycleEventType.RAW_RUM_EVENT_COLLECTED, (rawEvent: RawRumEvent) => {
+    if (renewing) {
+      return
+    }
     const rateLimiter = getOrCreateRateLimiter(rawEvent.type)
     if (rateLimiter.isLimitReached()) {
       return
@@ -127,7 +136,12 @@ export function startRumAssembly({
     const shouldUseEventTimeForSession = rawEvent.type !== 'view' || (rawView?.id && rawView.id !== currentPage?.id)
     let session = sessionManager.findSession(shouldUseEventTimeForSession ? eventTime : undefined)
     if (!session) {
-      session = sessionManager.renew()
+      renewing = true
+      try {
+        session = sessionManager.renew()
+      } finally {
+        renewing = false
+      }
       lifeCycle.notify(LifeCycleEventType.SESSION_RENEWED, { session })
       if (session.isTracked === false) {
         return
