@@ -15,6 +15,8 @@ jobs:
   publish-npm:
     if: github.event_name == 'push' || github.event.inputs.confirm_publish == 'yes'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -45,6 +47,17 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org/'
 
+      - name: Extract release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${TAG#v}"
+          else
+            VERSION="$(node -p "require('./packages/core/package.json').version")"
+          fi
+          bash .github/scripts/extract-release-notes.sh --changelog CHANGELOG.md --version "$VERSION" --level 2 --output release-notes.md
+
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
@@ -63,6 +76,18 @@ jobs:
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create or update GitHub Release
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --verify-tag
+          fi
 
   notify-success:
     needs: publish-npm
